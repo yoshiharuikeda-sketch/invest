@@ -1,4 +1,4 @@
-"""
+﻿"""
 kabuステーション® 自動起動・ログイン・終了スクリプト
 =====================================================
 【使い方】
@@ -58,8 +58,8 @@ CREDENTIALS_FILE = DIR / "credentials.json"
 TOKEN_FILE       = DIR / "token.json"
 
 # 2FAメール設定
-MAIL_SENDER_FILTER  = "kabu.com"
-MAIL_SUBJECT_FILTER = "認証"
+MAIL_SENDER_FILTER  = "mail.kabu.com"
+MAIL_SUBJECT_FILTER = "ワンタイム認証コード"
 CODE_PATTERN        = r"\b(\d{6})\b"
 INVALID_CODES       = {"000000", "222228", "111111"}
 
@@ -231,7 +231,7 @@ def fetch_2fa_code(service, since_dt: datetime, timeout_sec: int = AUTH_WAIT_SEC
     log.info(f"2FAメール待機中（最大{timeout_sec}秒）...")
     while time.time() < deadline:
         try:
-            query = (f"from:{MAIL_SENDER_FILTER} subject:{MAIL_SUBJECT_FILTER} "
+            query = (f"from:{MAIL_SENDER_FILTER} subject:\"{MAIL_SUBJECT_FILTER}\" "
                      f"after:{int(since_dt.timestamp())}")
             results = service.users().messages().list(
                 userId="me", q=query, maxResults=5
@@ -686,3 +686,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
