@@ -1,24 +1,22 @@
-# === 機密情報（絶対にコミットしない） ===
+# === 機寁E��報�E�絶対にコミットしなぁE��E===
 .env_windows
 credentials.json
 token.json
 token_monitor.json
 .kabu_token.json
 
-# === 生成キャッシュ・大容量ファイル ===
+# === 生�EキャチE��ュ・大容量ファイル ===
 *.parquet
 __pycache__/
 *.pyc
 *.pyo
 
 # === ログファイル ===
-log_*.txt
 setup_log.txt
 test_out.txt
 shortpath.txt
 
-# === 生成データ（都度再生成可能） ===
-signal_*.csv
+# === 生�EチE�Eタ�E��E度再生成可能�E�E===
 daily_returns.csv
 performance_summary.csv
 cost_*.csv
@@ -27,12 +25,11 @@ matsui_*.csv
 portfolio_*.csv
 tasks*.csv
 temp_tasks.csv
-APIタブ
-
-# === デバッグ用スクリーンショット ===
+APIタチE
+# === チE��チE��用スクリーンショチE�� ===
 *.png
 
-# === テスト用一時スクリプト ===
+# === チE��ト用一時スクリプト ===
 test_*.ps1
 
 # === 一時修正スクリプト ===
@@ -40,5 +37,5 @@ fix_tasks.bat
 fix_tasks.ps1
 fix_tasks2.bat
 
-# === Claude Code 内部 ===
+# === Claude Code 冁E�� ===
 .claude/

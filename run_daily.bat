@@ -11,3 +11,13 @@ IF "%1"=="open"   python "G:\My Drive\Claude Code\Invest\kabu_order.py" --value 
 IF "%1"=="close"  python "G:\My Drive\Claude Code\Invest\kabu_order.py" --close --value %PORTFOLIO_VALUE% >> "G:\My Drive\Claude Code\Invest\log_order.txt" 2>&1
 IF "%1"=="dry"     python "G:\My Drive\Claude Code\Invest\kabu_order.py" --value %PORTFOLIO_VALUE%
 IF "%1"=="monitor" python "G:\My Drive\Claude Code\Invest\monitor_agent.py"
+
+IF "%1"=="sync" (
+  cd /d "G:\My Drive\Claude Code\Invest"
+  git add log_autologin.txt log_signal.txt log_order.txt signal_*.csv 2>nul
+  git diff --cached --quiet 2>nul
+  IF ERRORLEVEL 1 (
+    git commit -m "logs: %DATE% %TIME:~0,8%"
+    git push origin HEAD
+  )
+)
