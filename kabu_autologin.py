@@ -231,10 +231,9 @@ def fetch_2fa_code(service, since_dt: datetime, timeout_sec: int = AUTH_WAIT_SEC
     log.info(f"2FAメール待機中（最大{timeout_sec}秒）...")
     while time.time() < deadline:
         try:
-            query = (f"from:{MAIL_SENDER_FILTER} subject:\"{MAIL_SUBJECT_FILTER}\" "
-                     f"after:{int(since_dt.timestamp())}")
+            query = f"from:{MAIL_SENDER_FILTER} subject:\"{MAIL_SUBJECT_FILTER}\" newer_than:1d"
             results = service.users().messages().list(
-                userId="me", q=query, maxResults=5
+                userId="me", q=query, maxResults=10
             ).execute()
 
             for msg_ref in results.get("messages", []):
