@@ -10,10 +10,12 @@ kabuステーション® 自動起動・ログイン・終了スクリプト
   1. kabu APIが既に使えるならスキップ（ログイン済み）
   2. kabuステーションが未起動なら起動
   3. ログインダイアログを待つ
-  4. ログインボタンをクリック（2FA送信トリガー）
-  5. GmailからOTPを取得
-  6. OTPを入力して「続ける」ボタンを押す
-  7. API確認でログイン完了を検証
+  4. 口座番号フィールドでEnter×2（ログイン開始）
+  5. パスキー認証選択ウィンドウを待つ
+  6. Tab×9 + Enter（2FA送信トリガー）
+  7. GmailからOTPを取得
+  8. OTPを入力して「続ける」ボタンを押す
+  9. API確認でログイン完了を検証
 
 【動作フロー（shutdownモード）】
   1. kabuステーションのメインウィンドウを探す
@@ -719,7 +721,7 @@ def do_login() -> bool:
             log.error("2FAコード入力失敗")
             return False
 
-        # 9. API確認でログイン完了を検証（最大STARTUP_WAIT_SEC秒リトライ）
+        # 12. API確認でログイン完了を検証（最大STARTUP_WAIT_SEC秒リトライ）
         import requests
         password = _read_api_password()
         if not password:
