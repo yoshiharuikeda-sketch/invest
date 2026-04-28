@@ -10,10 +10,12 @@ kabuステーション® 自動起動・ログイン・終了スクリプト
   1. kabu APIが既に使えるならスキップ（ログイン済み）
   2. kabuステーションが未起動なら起動
   3. ログインダイアログを待つ
-  4. ログインボタンをクリック（2FA送信トリガー）
-  5. GmailからOTPを取得
-  6. OTPを入力して「続ける」ボタンを押す
-  7. API確認でログイン完了を検証
+  4. 口座番号フィールドでEnter×2（ログイン開始）
+  5. パスキー認証選択ウィンドウを待つ
+  6. Tab×9 + Enter（2FA送信トリガー）
+  7. GmailからOTPを取得
+  8. OTPを入力して「続ける」ボタンを押す
+  9. API確認でログイン完了を検証
 
 【動作フロー（shutdownモード）】
   1. kabuステーションのメインウィンドウを探す
@@ -73,6 +75,7 @@ LOGIN_WAIT_SEC      = 90    # ログインダイアログ検出の最大待ち�
 AUTH_WAIT_SEC       = 120   # 2FAメール到着の最大待ち秒数
 AUTH_CHECK_INTERVAL = 4     # 2FAメール確認間隔（秒）
 SHUTDOWN_WAIT_SEC   = 15    # WM_CLOSE後に強制終了するまでの待ち秒数
+PASSKEY_WAIT_SEC    = 30    # パスキー選択ウィンドウの最大待ち秒数
 
 # ログ
 LOG_FILE = DIR / "log_autologin.txt"
@@ -367,6 +370,17 @@ def _force_foreground(hwnd: int):
     time.sleep(0.8)
 
 
+def _get_visible_window_handles() -> set:
+    """現在表示されているトップレベルウィンドウのhwndセットを返す"""
+    handles = set()
+    def _cb(hwnd, _):
+        if win32gui.IsWindowVisible(hwnd):
+            handles.add(hwnd)
+        return True
+    win32gui.EnumWindows(_cb, None)
+    return handles
+
+
 def find_login_dialog(timeout_sec: int = LOGIN_WAIT_SEC):
     """ログインダイアログ（タイトル "ログイン"、幅>400px）をポーリングで探す"""
     from pywinauto import Desktop
@@ -393,18 +407,11 @@ def find_login_dialog(timeout_sec: int = LOGIN_WAIT_SEC):
     return None
 
 
-def click_login_button(dialog) -> bool:
+def submit_account_number() -> bool:
     """
-    ログインボタンをPostMessageで押下する。
-
-    SendInput はスクリーンロック中に入力デスクトップ（ロック画面）に
-    イベントが吸われてkabuStationに届かない。
-    PostMessage はウィンドウのメッセージキューに直接送るため
-    スクリーンロック中でも動作する。
-
-    ボタン位置はダイアログ矩形からの比率で算出。
-    実績値: dialog(L:471 T:213 R:1449 B:818) → button screen(1216, 636)
-    → クライアント座標 (745, 423) ≒ ダイアログ幅76%, 高さ70%
+    ログインダイアログ起動時、口座番号入力フィールドにフォーカスがある状態で
+    Enterキーを2度押下してログイン処理を開始する。
+    スクリーンロック中でも動作するようPostMessage経由で操作する。
     """
     try:
         hwnd = win32gui.FindWindow(None, "ログイン")
@@ -412,47 +419,123 @@ def click_login_button(dialog) -> bool:
             log.error("ログインウィンドウが見つかりません")
             return False
 
-        rect = win32gui.GetWindowRect(hwnd)
-        w = rect[2] - rect[0]
-        h = rect[3] - rect[1]
-
-        # Chrome_RenderWidgetHostHWND（CEF描画ウィンドウ）を探す
-        # WM_LBUTTONDOWNはここに送る必要がある（外側の"ログイン"ウィンドウでは届かない）
         cef_hwnd = [None]
-        def _find_cef_render(child_hwnd, _):
+        def _find_cef(child_hwnd, _):
             if win32gui.GetClassName(child_hwnd) == "Chrome_RenderWidgetHostHWND":
                 cef_hwnd[0] = child_hwnd
                 return False
             return True
         try:
-            win32gui.EnumChildWindows(hwnd, _find_cef_render, None)
+            win32gui.EnumChildWindows(hwnd, _find_cef, None)
         except Exception:
             pass
 
         target = cef_hwnd[0] or hwnd
-        target_cls = win32gui.GetClassName(target)
-        target_rect = win32gui.GetWindowRect(target)
-        log.info(f"クリック対象: {target_cls} rect={target_rect}")
+        log.info(f"口座番号フィールドEnter×2: {win32gui.GetClassName(target)} (hwnd={target})")
 
-        # ボタンのクライアント座標（対象ウィンドウ左上からの相対値）
-        tw = target_rect[2] - target_rect[0]
-        th = target_rect[3] - target_rect[1]
-        bx_c = int(tw * 0.76)
-        by_c = int(th * 0.70)
-        l_param = win32api.MAKELONG(bx_c, by_c)
-
-        # CEF描画ウィンドウにPostMessage
         win32api.PostMessage(target, win32con.WM_ACTIVATE, win32con.WA_ACTIVE, 0)
         win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
         time.sleep(0.3)
-        win32api.PostMessage(target, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, l_param)
-        time.sleep(0.1)
-        win32api.PostMessage(target, win32con.WM_LBUTTONUP, 0, l_param)
-        log.info(f"ログインボタンクリック（PostMessage → {target_cls}）: client({bx_c}, {by_c})")
+
+        for _ in range(2):
+            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
+            time.sleep(0.1)
+            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
+            time.sleep(0.5)
+        log.info("Enterキー×2押下完了")
         return True
 
     except Exception as e:
-        log.error(f"ログインフォーム送信失敗: {e}")
+        log.error(f"口座番号送信失敗: {e}")
+        return False
+
+
+def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC) -> int | None:
+    """
+    Enter×2後に表示されるパスキー認証選択ウィンドウを検出する。
+    known_handles に含まれない新規の可視ウィンドウをポーリングで探す。
+    """
+    log.info(f"パスキー選択ウィンドウ待機中（最大{timeout_sec}秒）...")
+    deadline = time.time() + timeout_sec
+
+    while time.time() < deadline:
+        current = []
+        def _cb(hwnd, _):
+            if win32gui.IsWindowVisible(hwnd):
+                current.append(hwnd)
+            return True
+        win32gui.EnumWindows(_cb, None)
+
+        for hwnd in current:
+            if hwnd in known_handles:
+                continue
+            title = win32gui.GetWindowText(hwnd)
+            rect = win32gui.GetWindowRect(hwnd)
+            w, h = rect[2] - rect[0], rect[3] - rect[1]
+            if w > 300 and h > 200:
+                log.info(f"パスキー選択ウィンドウ検出: '{title}' hwnd={hwnd} size=({w}×{h})")
+                time.sleep(3)
+                return hwnd
+        time.sleep(2)
+
+    log.error("パスキー選択ウィンドウが見つかりませんでした")
+    return None
+
+
+def handle_passkey_dialog(hwnd: int) -> bool:
+    """
+    パスキー認証選択画面でTab×9、Enterを押下してパスキーをスキップし2FA送信を開始する。
+    スクリーンロック中でも動作するようPostMessage経由で操作する。
+    """
+    try:
+        cef_hwnd = [None]
+        def _find_cef(child_hwnd, _):
+            if win32gui.GetClassName(child_hwnd) == "Chrome_RenderWidgetHostHWND":
+                cef_hwnd[0] = child_hwnd
+                return False
+            return True
+        try:
+            win32gui.EnumChildWindows(hwnd, _find_cef, None)
+        except Exception:
+            pass
+
+        target = cef_hwnd[0] or hwnd
+        log.info(f"パスキー選択ウィンドウ操作: {win32gui.GetClassName(target)} (hwnd={target})")
+
+        win32api.PostMessage(target, win32con.WM_ACTIVATE, win32con.WA_ACTIVE, 0)
+        win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
+        time.sleep(0.3)
+
+        # DOM起点クリックでフォーカスの起点を作る
+        target_rect = win32gui.GetWindowRect(target)
+        tw = target_rect[2] - target_rect[0]
+        th = target_rect[3] - target_rect[1]
+        cx, cy = int(tw * 0.50), int(th * 0.50)
+        c_lparam = win32api.MAKELONG(cx, cy)
+        win32api.PostMessage(target, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, c_lparam)
+        time.sleep(0.1)
+        win32api.PostMessage(target, win32con.WM_LBUTTONUP, 0, c_lparam)
+        log.info(f"DOM起点クリック: client({cx}, {cy})")
+        time.sleep(0.5)
+
+        # Tab×9回でボタンにフォーカスを移動
+        for i in range(9):
+            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
+            time.sleep(0.1)
+            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
+            time.sleep(0.15)
+        log.info("Tabキー×9回完了")
+        time.sleep(0.3)
+
+        # Enter（2FA送信トリガー）
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
+        time.sleep(0.1)
+        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
+        log.info("Enterキー押下（パスキー選択完了 → 2FA送信）")
+        return True
+
+    except Exception as e:
+        log.error(f"パスキー選択ウィンドウ操作失敗: {e}")
         return False
 
 
@@ -485,7 +568,7 @@ def enter_2fa_code(code: str, dialog) -> bool:
         target = cef_hwnd[0] or hwnd
         log.info(f"2FA入力対象: {win32gui.GetClassName(target)} (hwnd={target})")
 
-        # CEFウィンドウをアクティブ化（click_login_buttonと同様）
+        # CEFウィンドウをアクティブ化
         win32api.PostMessage(target, win32con.WM_ACTIVATE, win32con.WA_ACTIVE, 0)
         win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
         time.sleep(0.3)
@@ -603,27 +686,41 @@ def do_login() -> bool:
             log.error("ログインダイアログが見つかりません")
             return False
 
-        # 5. ログインボタンをクリック（2FA送信トリガー）
-        login_time = datetime.now(timezone.utc)
-        log.info("ログインボタンをクリック...")
-        if not click_login_button(dialog):
+        # 5. パスキー選択ウィンドウ検出のため現在のウィンドウ一覧を記録
+        known_handles = _get_visible_window_handles()
+
+        # 6. 口座番号フィールドでEnter×2（ログイン開始 → パスキー選択画面が表示される）
+        log.info("口座番号フィールドでEnter×2...")
+        if not submit_account_number():
             return False
 
-        # 6. 2FAコードをGmailから取得（クリック直後から即ポーリング）
+        # 7. パスキー認証選択ウィンドウを待つ
+        passkey_hwnd = find_passkey_dialog(known_handles)
+        if passkey_hwnd is None:
+            log.error("パスキー選択ウィンドウが見つかりません")
+            return False
+
+        # 8. Tab×9 + Enter（2FA送信トリガー）
+        login_time = datetime.now(timezone.utc)
+        log.info("パスキー選択ウィンドウでTab×9 + Enter（2FA送信）...")
+        if not handle_passkey_dialog(passkey_hwnd):
+            return False
+
+        # 9. 2FAコードをGmailから取得
         code = fetch_2fa_code(service, since_dt=login_time)
         if code is None:
             log.error("2FAコード取得失敗 → 自動ログイン中断")
             return False
 
-        # 7. 2FAフォームが表示されるまで待つ
+        # 10. 2FAフォームが表示されるまで待つ
         time.sleep(3)
 
-        # 8. コードを入力して「続ける」ボタンを押す
+        # 11. コードを入力して「続ける」ボタンを押す
         if not enter_2fa_code(code, dialog):
             log.error("2FAコード入力失敗")
             return False
 
-        # 9. API確認でログイン完了を検証（最大STARTUP_WAIT_SEC秒リトライ）
+        # 12. API確認でログイン完了を検証（最大STARTUP_WAIT_SEC秒リトライ）
         import requests
         password = _read_api_password()
         if not password:
