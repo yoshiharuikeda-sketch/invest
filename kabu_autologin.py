@@ -171,18 +171,23 @@ def shutdown_kabustation() -> bool:
 # API確認
 # =====================================================================
 
-def _read_api_password() -> str:
-    """'.env_windows' からAPIパスワードを読み込む"""
+def _read_env(key: str) -> str:
+    """'.env_windows' から指定キーの値を読み込む"""
     pw_file = DIR / ".env_windows"
     try:
         with open(pw_file, encoding="utf-8-sig") as f:
             for line in f:
                 line = line.strip().rstrip("\r")
-                if line.startswith("KABU_API_PASSWORD="):
+                if line.startswith(f"{key}="):
                     return line.split("=", 1)[1].strip().rstrip("\r")
     except Exception as e:
         log.error(f".env_windows 読み込み失敗: {e}")
     return ""
+
+
+def _read_api_password() -> str:
+    """'.env_windows' からAPIパスワードを読み込む"""
+    return _read_env("KABU_API_PASSWORD")
 
 
 def is_api_ready() -> bool:
@@ -410,9 +415,14 @@ def find_login_dialog(timeout_sec: int = LOGIN_WAIT_SEC):
 def submit_account_number() -> bool:
     """
     ログインダイアログ起動時、口座番号入力フィールドにフォーカスがある状態で
-    Enterキーを2度押下してログイン処理を開始する。
+    口座番号を入力してEnterキーを2度押下してログイン処理を開始する。
     スクリーンロック中でも動作するようPostMessage経由で操作する。
     """
+    account_number = _read_env("KABU_ACCOUNT_NUMBER")
+    if not account_number:
+        log.error("KABU_ACCOUNT_NUMBER が .env_windows に未設定")
+        return False
+
     try:
         hwnd = win32gui.FindWindow(None, "ログイン")
         if not hwnd:
@@ -431,17 +441,23 @@ def submit_account_number() -> bool:
             pass
 
         target = cef_hwnd[0] or hwnd
-        log.info(f"口座番号フィールドEnter×2: {win32gui.GetClassName(target)} (hwnd={target})")
+        log.info(f"口座番号入力: {win32gui.GetClassName(target)} (hwnd={target})")
 
         win32api.PostMessage(target, win32con.WM_ACTIVATE, win32con.WA_ACTIVE, 0)
         win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
+        time.sleep(0.3)
+
+        for ch in account_number:
+            win32api.PostMessage(target, win32con.WM_CHAR, ord(ch), 0)
+            time.sleep(0.05)
+        log.info(f"口座番号入力完了（{len(account_number)}文字）")
         time.sleep(0.3)
 
         for _ in range(2):
             win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
             time.sleep(0.1)
             win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
-            time.sleep(0.5)
+            time.sleep(1.5)
         log.info("Enterキー×2押下完了")
         return True
 
@@ -472,6 +488,7 @@ def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC)
             title = win32gui.GetWindowText(hwnd)
             rect = win32gui.GetWindowRect(hwnd)
             w, h = rect[2] - rect[0], rect[3] - rect[1]
+            log.info(f"新規ウィンドウ検出: '{title}' hwnd={hwnd} size=({w}×{h})")
             if w > 300 and h > 200:
                 log.info(f"パスキー選択ウィンドウ検出: '{title}' hwnd={hwnd} size=({w}×{h})")
                 time.sleep(3)
