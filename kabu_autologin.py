@@ -39,6 +39,7 @@ import pyautogui
 import win32gui
 import win32api
 import win32con
+import win32clipboard
 
 pyautogui.FAILSAFE = False
 
@@ -447,11 +448,13 @@ def submit_account_number() -> bool:
         win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
         time.sleep(0.3)
 
-        for ch in account_number:
-            win32api.PostMessage(target, win32con.WM_CHAR, ord(ch), 0)
-            time.sleep(0.05)
-        log.info(f"口座番号入力完了（{len(account_number)}文字）")
-        time.sleep(0.3)
+        win32clipboard.OpenClipboard()
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardText(account_number, win32clipboard.CF_UNICODETEXT)
+        win32clipboard.CloseClipboard()
+        win32api.PostMessage(target, win32con.WM_PASTE, 0, 0)
+        log.info(f"口座番号ペースト完了（{len(account_number)}文字）")
+        time.sleep(0.5)
 
         for _ in range(2):
             win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
