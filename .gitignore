@@ -41,4 +41,6 @@ fix_tasks.ps1
 fix_tasks2.bat
 
 # === Claude Code 内部 ===
-.claude/
+.claude/settings.json
+.claude/settings.local.json
+.claude/todos/
