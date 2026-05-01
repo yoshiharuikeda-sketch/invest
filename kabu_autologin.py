@@ -713,7 +713,7 @@ def do_login() -> bool:
         # 7. Tab×9 + Enter（2FA送信トリガー）- 既存のログインダイアログに送信
         login_time = datetime.now(timezone.utc)
         log.info("パスキー選択画面でTab×9 + Enter（2FA送信）...")
-        if not handle_passkey_dialog(dialog):
+        if not handle_passkey_dialog(dialog.handle):
             return False
 
         # 9. 2FAコードをGmailから取得
