@@ -534,13 +534,13 @@ def handle_passkey_dialog(hwnd: int) -> bool:
         log.info(f"DOM起点クリック: client({cx}, {cy})")
         time.sleep(0.5)
 
-        # Tab×9回でボタンにフォーカスを移動
-        for i in range(9):
+        # Tab×8回でボタンにフォーカスを移動
+        for i in range(8):
             win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
             time.sleep(0.1)
             win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
             time.sleep(0.15)
-        log.info("Tabキー×9回完了")
+        log.info("Tabキー×8回完了")
         time.sleep(0.3)
 
         # Enter（2FA送信トリガー）
