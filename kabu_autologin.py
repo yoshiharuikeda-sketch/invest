@@ -701,24 +701,19 @@ def do_login() -> bool:
             log.error("ログインダイアログが見つかりません")
             return False
 
-        # 5. パスキー選択ウィンドウ検出のため現在のウィンドウ一覧を記録
-        known_handles = _get_visible_window_handles()
-
-        # 6. 口座番号フィールドでEnter×2（ログイン開始 → パスキー選択画面が表示される）
+        # 5. 口座番号フィールドでEnter×2（ログイン開始 → パスキー選択画面が表示される）
         log.info("口座番号フィールドでEnter×2...")
         if not submit_account_number():
             return False
 
-        # 7. パスキー認証選択ウィンドウを待つ
-        passkey_hwnd = find_passkey_dialog(known_handles)
-        if passkey_hwnd is None:
-            log.error("パスキー選択ウィンドウが見つかりません")
-            return False
+        # 6. パスキー選択画面の読み込みを待つ（CEFウィンドウ内に表示される）
+        log.info("パスキー選択画面読み込み待機（5秒）...")
+        time.sleep(5)
 
-        # 8. Tab×9 + Enter（2FA送信トリガー）
+        # 7. Tab×9 + Enter（2FA送信トリガー）- 既存のログインダイアログに送信
         login_time = datetime.now(timezone.utc)
-        log.info("パスキー選択ウィンドウでTab×9 + Enter（2FA送信）...")
-        if not handle_passkey_dialog(passkey_hwnd):
+        log.info("パスキー選択画面でTab×9 + Enter（2FA送信）...")
+        if not handle_passkey_dialog(dialog):
             return False
 
         # 9. 2FAコードをGmailから取得
