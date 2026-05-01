@@ -602,16 +602,6 @@ def enter_2fa_code(code: str, dialog) -> bool:
         log.info(f"DOM起点クリック: client({cx}, {cy})")
         time.sleep(0.5)
 
-        # Tabキー7回でOTP入力フィールドにフォーカスを移動
-        # （手動確認済み: 2FA画面でTab×7回でOTPフィールドに到達する）
-        for i in range(7):
-            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
-            time.sleep(0.1)
-            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
-            time.sleep(0.15)
-        log.info("Tabキー×6回でOTP入力フィールドにフォーカス移動")
-        time.sleep(0.5)
-
         # 既存テキストをBACKSPACEで削除（念のため）
         for _ in range(8):
             win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_BACK, 0)
