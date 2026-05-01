@@ -444,16 +444,21 @@ def submit_account_number() -> bool:
         target = cef_hwnd[0] or hwnd
         log.info(f"口座番号入力: {win32gui.GetClassName(target)} (hwnd={target})")
 
-        win32api.PostMessage(target, win32con.WM_ACTIVATE, win32con.WA_ACTIVE, 0)
-        win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
-        time.sleep(0.3)
-
         win32clipboard.OpenClipboard()
         win32clipboard.EmptyClipboard()
         win32clipboard.SetClipboardText(account_number, win32clipboard.CF_UNICODETEXT)
         win32clipboard.CloseClipboard()
-        win32api.PostMessage(target, win32con.WM_PASTE, 0, 0)
-        log.info(f"口座番号ペースト完了（{len(account_number)}文字）")
+        time.sleep(0.2)
+
+        # Ctrl+V でペースト（フォーカスは起動時から口座番号フィールドにある）
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_CONTROL, 0x001D0001)
+        time.sleep(0.05)
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, ord('V'), 0x002F0001)
+        time.sleep(0.05)
+        win32api.PostMessage(target, win32con.WM_KEYUP, ord('V'), 0xC02F0001)
+        time.sleep(0.05)
+        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_CONTROL, 0xC01D0001)
+        log.info(f"口座番号Ctrl+Vペースト完了（{len(account_number)}文字）")
         time.sleep(0.5)
 
         for _ in range(2):
