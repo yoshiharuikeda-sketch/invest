@@ -1,0 +1,30 @@
+[2026-04-10 21:18:10] 監視チェック開始: 2026-04-10
+[2026-04-10 21:18:21] 監視チェック開始: 2026-04-10
+[2026-04-10 21:18:21] --dry モード: メール送信スキップ
+[2026-04-10 21:21:43] 監視チェック開始: 2026-04-10
+[2026-04-10 21:21:43] Please visit this URL to authorize this application: https://accounts.google.com/o/oauth2/auth?response_type=code&client_id=824264699447-bpe2u340dnie7j6jbv2a0ni7le4s8gfs.apps.googleusercontent.com&redirect_uri=http%3A%2F%2Flocalhost%3A59859%2F&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.readonly+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.send&state=O6GrNvzDyE3UxlyjWU1xxGcClqn55z&code_challenge=g_bfdBAQ1STqj8dRjp8lLXaEVC8CWEmXeGNGMJnMbDo&code_challenge_method=S256&access_type=offline
+[2026-04-10 21:21:54] "GET /?state=O6GrNvzDyE3UxlyjWU1xxGcClqn55z&iss=https://accounts.google.com&code=4/0Aci98E8HO7oLE6pas7-QnzEa1PzA_WQglfs_NiyxDLvtGdpKbJJV0jTENFQG11NWnrppmA&scope=https://www.googleapis.com/auth/gmail.send%20https://www.googleapis.com/auth/gmail.readonly HTTP/1.1" 200 65
+[2026-04-10 21:21:55] file_cache is only supported with oauth2client<4.0.0
+[2026-04-10 21:21:57] 通知送信: [投資戦略] ⚠️ 要確認  2026年04月10日 21:21 → yoshiharu.ikeda@gmail.com
+[2026-04-10 21:21:57] 監視チェック完了: 要確認あり
+Traceback (most recent call last):
+  File "G:\My Drive\Claude Code\Invest\monitor_agent.py", line 57, in <module>
+    logging.basicConfig(
+    ~~~~~~~~~~~~~~~~~~~^
+        filename=LOG_FILE,
+        ^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        encoding="utf-8",
+        ^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\tropi\AppData\Local\Python\pythoncore-3.14-64\Lib\logging\__init__.py", line 2101, in basicConfig
+    h = FileHandler(filename, mode,
+                    encoding=encoding, errors=errors)
+  File "C:\Users\tropi\AppData\Local\Python\pythoncore-3.14-64\Lib\logging\__init__.py", line 1219, in __init__
+    StreamHandler.__init__(self, self._open())
+                                 ~~~~~~~~~~^^
+  File "C:\Users\tropi\AppData\Local\Python\pythoncore-3.14-64\Lib\logging\__init__.py", line 1248, in _open
+    return open_func(self.baseFilename, self.mode,
+                     encoding=self.encoding, errors=self.errors)
+PermissionError: [Errno 13] Permission denied: 'G:\\My Drive\\Claude Code\\Invest\\log_monitor.txt'

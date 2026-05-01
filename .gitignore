@@ -37,5 +37,12 @@ fix_tasks.bat
 fix_tasks.ps1
 fix_tasks2.bat
 
+<<<<<<< HEAD
 # === Claude Code å†Eƒ¨ ===
 .claude/
+=======
+# === Claude Code å†…éƒ¨ ===
+.claude/settings.json
+.claude/settings.local.json
+.claude/todos/
+>>>>>>> e74af7739646fa83c322bf217693932ceedc2f39
