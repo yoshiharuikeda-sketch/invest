@@ -7,7 +7,7 @@
 
 **証券会社**: 三菱UFJ eスマート証券（旧auカブコム）  
 **API**: kabuステーション® REST API (localhost:18080)  
-**運用モード**: 現在 DRY RUN（`--execute` なし） → 来週以降 本番予定
+**運用モード**: 現在 DRY RUN（`--execute` なし） → 本番移行検討中（2026-05-07時点）
 
 ---
 
@@ -52,7 +52,7 @@ G:\My Drive\Claude Code\Invest\
 
 | 時刻  | タスク名（Task Scheduler） | 処理内容                     |
 |-------|---------------------------|------------------------------|
-| 08:00 | invest_login              | kabuStation起動 + 2FA + API認証（VBS非表示起動） |
+| **08:47** | invest_login          | kabuStation起動 + 2FA + API認証（VBS非表示起動） |
 | 08:50 | invest_signal             | daily_signal.py → signal_YYYYMMDD.csv |
 | 09:00 | invest_open               | kabu_order.py（DRY RUN 発注） |
 | 09:05 | —（手動 or 別途）          | monitor_agent.py → Gmail（朝通知） |
@@ -64,6 +64,15 @@ G:\My Drive\Claude Code\Invest\
 | 15:32 | —（手動 or 別途）          | monitor_agent.py → Gmail（夕通知） |
 
 **タスク登録ファイル**: C:\Users\tropi\invest_import_tasks.ps1（管理者権限で実行）
+
+---
+
+## 自動ログインテスト
+
+```powershell
+# スリープ不要の手動テスト（ログイン動作確認用）
+powershell.exe -ExecutionPolicy Bypass -File "G:\My Drive\Claude Code\Invest\invest_test_autologin.ps1"
+```
 
 ---
 
@@ -146,7 +155,29 @@ XML修正時の注意: XMLファイルはUTF-16エンコーディング。PowerS
 ### 発注モード
 - **デフォルト（DRY RUN）**: `run_daily.bat open/close` → シミュレーションのみ、実際の注文なし
 - **本番**: `kabu_order.py` に `--execute` フラグを追加して初めて実発注
-- 現在のステータス: DRY RUN週（2026-04-14〜）→ 来週以降本番検討
+- 現在のステータス: DRY RUN中（2026-05-07時点）→ 本番移行検討中
+
+### kabuStation自動ログインフロー（2026-05 新仕様）
+kabuStationのログイン仕様変更に伴い `kabu_autologin.py` を更新済み（2026-04-28〜05-01）。
+
+**ログインステップ順序（重要）:**
+1. Gmail API初期化
+2. ログイン済み確認（スキップ判定）
+3. kabuStation未起動なら起動
+4. ログインダイアログ待機（最大90秒）
+5. 口座番号をWM_CHARで入力 → Enter×2（これで2FAメール送信される）
+6. GmailからOTPコード取得（最大120秒ポーリング）
+7. 2FAフォーム表示待機（3秒）
+8. OTPをWM_CHARで入力 → Enter
+9. パスキー選択画面読み込み待機（5秒）
+10. Tab×8 + Enter（パスキー選択スキップ）
+11. API認証確認（最大120秒）
+
+**重要な実装ルール:**
+- フォーカス操作（WM_ACTIVATE / WM_SETFOCUS）は**送らない**（カーソルが外れる原因）
+- DOM起点クリック（WM_LBUTTONDOWN）も**送らない**（同上）
+- 口座番号・OTP入力ともにカーソルは起動時から正しい位置にある
+- パスキー選択ウィンドウは独立した新ウィンドウではなく既存CEFウィンドウ内に表示される
 
 ---
 
@@ -155,6 +186,7 @@ XML修正時の注意: XMLファイルはUTF-16エンコーディング。PowerS
 ```
 KABU_API_PASSWORD=<APIパスワード>
 PORTFOLIO_VALUE=990000
+KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 ```
 
 ---
