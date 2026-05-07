@@ -583,31 +583,7 @@ def enter_2fa_code(code: str, dialog) -> bool:
         target = cef_hwnd[0] or hwnd
         log.info(f"2FA入力対象: {win32gui.GetClassName(target)} (hwnd={target})")
 
-        # CEFウィンドウをアクティブ化
-        win32api.PostMessage(target, win32con.WM_ACTIVATE, win32con.WA_ACTIVE, 0)
-        win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
-        time.sleep(0.3)
-
-        # ウィンドウ中央を1回クリックしてCEF DOM内にフォーカスの起点を作る
-        # （WM_SETFOCUSだけではDOMフォーカスが入らないためTabが効かない）
-        target_rect = win32gui.GetWindowRect(target)
-        tw2 = target_rect[2] - target_rect[0]
-        th2 = target_rect[3] - target_rect[1]
-        cx = int(tw2 * 0.50)
-        cy = int(th2 * 0.50)
-        c_lparam = win32api.MAKELONG(cx, cy)
-        win32api.PostMessage(target, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, c_lparam)
-        time.sleep(0.1)
-        win32api.PostMessage(target, win32con.WM_LBUTTONUP, 0, c_lparam)
-        log.info(f"DOM起点クリック: client({cx}, {cy})")
-        time.sleep(0.5)
-
-        # 既存テキストをBACKSPACEで削除（念のため）
-        for _ in range(8):
-            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_BACK, 0)
-            time.sleep(0.03)
-
-        # 6桁コードをWM_CHARで1文字ずつ入力
+        # 6桁コードをWM_CHARで1文字ずつ入力（カーソルは既にOTPフィールドにある）
         for char in code:
             win32api.PostMessage(target, win32con.WM_CHAR, ord(char), 0)
             time.sleep(0.05)
