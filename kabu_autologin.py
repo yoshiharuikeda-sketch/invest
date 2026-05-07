@@ -692,33 +692,33 @@ def do_login() -> bool:
             log.error("ログインダイアログが見つかりません")
             return False
 
-        # 5. 口座番号フィールドでEnter×2（ログイン開始 → パスキー選択画面が表示される）
+        # 5. 口座番号フィールドでEnter×2（ログイン開始 → 2FAメール送信）
+        login_time = datetime.now(timezone.utc)
         log.info("口座番号フィールドでEnter×2...")
         if not submit_account_number():
             return False
 
-        # 6. パスキー選択画面の読み込みを待つ（CEFウィンドウ内に表示される）
-        log.info("パスキー選択画面読み込み待機（5秒）...")
-        time.sleep(5)
-
-        # 7. Tab×8 + Enter（2FA送信トリガー）- 既存のログインダイアログに送信
-        login_time = datetime.now(timezone.utc)
-        log.info("パスキー選択画面でTab×8 + Enter（2FA送信）...")
-        if not handle_passkey_dialog(dialog.handle):
-            return False
-
-        # 8. 2FAコードをGmailから取得
+        # 6. 2FAコードをGmailから取得
         code = fetch_2fa_code(service, since_dt=login_time)
         if code is None:
             log.error("2FAコード取得失敗 → 自動ログイン中断")
             return False
 
-        # 9. 2FAフォームが表示されるまで待つ
+        # 7. 2FAフォームが表示されるまで待つ
         time.sleep(3)
 
-        # 10. コードを入力して「続ける」ボタンを押す
+        # 8. コードを入力して「続ける」ボタンを押す
         if not enter_2fa_code(code, dialog):
             log.error("2FAコード入力失敗")
+            return False
+
+        # 9. パスキー選択画面の読み込みを待つ（CEFウィンドウ内に表示される）
+        log.info("パスキー選択画面読み込み待機（5秒）...")
+        time.sleep(5)
+
+        # 10. Tab×8 + Enter（パスキー選択スキップ）
+        log.info("パスキー選択画面でTab×8 + Enter...")
+        if not handle_passkey_dialog(dialog.handle):
             return False
 
         # 11. API確認でログイン完了を検証（最大STARTUP_WAIT_SEC秒リトライ）
