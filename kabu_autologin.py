@@ -701,27 +701,27 @@ def do_login() -> bool:
         log.info("パスキー選択画面読み込み待機（5秒）...")
         time.sleep(5)
 
-        # 7. Tab×9 + Enter（2FA送信トリガー）- 既存のログインダイアログに送信
+        # 7. Tab×8 + Enter（2FA送信トリガー）- 既存のログインダイアログに送信
         login_time = datetime.now(timezone.utc)
-        log.info("パスキー選択画面でTab×9 + Enter（2FA送信）...")
+        log.info("パスキー選択画面でTab×8 + Enter（2FA送信）...")
         if not handle_passkey_dialog(dialog.handle):
             return False
 
-        # 9. 2FAコードをGmailから取得
+        # 8. 2FAコードをGmailから取得
         code = fetch_2fa_code(service, since_dt=login_time)
         if code is None:
             log.error("2FAコード取得失敗 → 自動ログイン中断")
             return False
 
-        # 10. 2FAフォームが表示されるまで待つ
+        # 9. 2FAフォームが表示されるまで待つ
         time.sleep(3)
 
-        # 11. コードを入力して「続ける」ボタンを押す
+        # 10. コードを入力して「続ける」ボタンを押す
         if not enter_2fa_code(code, dialog):
             log.error("2FAコード入力失敗")
             return False
 
-        # 12. API確認でログイン完了を検証（最大STARTUP_WAIT_SEC秒リトライ）
+        # 11. API確認でログイン完了を検証（最大STARTUP_WAIT_SEC秒リトライ）
         import requests
         password = _read_api_password()
         if not password:
