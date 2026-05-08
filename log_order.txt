@@ -470,3 +470,42 @@
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+=================================================================
+  kabuステーションAPI 発注確認（DRY RUN）
+  実行時刻: 2026-05-08 09:00:03
+  運用資産: 990,000円
+=================================================================
+
+【1. 認証】
+  ✅ トークン取得成功
+
+【2. 残高確認】
+  現物買付余力: 999,752円
+  信用新規余力: 3,332,506円
+
+【3. シグナル読み込み】
+  シグナルファイル: signal_20260507.csv（20260507）
+  LONG : 5銘柄 / SHORT: 5銘柄
+
+【4. 発注内容（寄付き成行）】
+
+  ▼ LONG（信用新規買い）
+    [1617] 食品 買い 4口 (成行) [DRY RUN]
+    [1627] 電力・ガス 買い 16口 (成行) [DRY RUN]
+    [1621] 医薬品 買い 6口 (成行) [DRY RUN]
+    [1630] 小売 買い 5口 (成行) [DRY RUN]
+    [1628] 運輸・物流 買い 9口 (成行) [DRY RUN]
+
+  ▼ SHORT（信用新規売り）
+    [1626] 情報通信・サービス 売り（空売り） 4口 (成行) [DRY RUN]
+    [1631] 銀行 売り（空売り） 5口 (成行) [DRY RUN]
+    [1618] エネルギー資源 売り（空売り） 5口 (成行) [DRY RUN]
+    [1625] 電機・精密 売り（空売り） 3口 (成行) [DRY RUN]
+    [1629] 商社・卸売 売り（空売り） 704口 (成行) [DRY RUN]
+
+【5. 発注サマリー】
+  発注数: 10件
+  ⚠️  DRY RUN モード: 実際の発注は行われていません
+  実発注するには --execute オプションを付けて実行してください
+
+=== 完了 ===
