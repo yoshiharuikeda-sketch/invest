@@ -7,15 +7,17 @@ kabuステーション® 自動起動・ログイン・終了スクリプト
   python kabu_autologin.py --mode shutdown # kabuステーション終了
 
 【動作フロー（loginモード）】
-  1. kabu APIが既に使えるならスキップ（ログイン済み）
-  2. kabuステーションが未起動なら起動
-  3. ログインダイアログを待つ
-  4. 口座番号フィールドでEnter×2（ログイン開始）
-  5. パスキー認証選択ウィンドウを待つ
-  6. Tab×9 + Enter（2FA送信トリガー）
-  7. GmailからOTPを取得
-  8. OTPを入力して「続ける」ボタンを押す
-  9. API確認でログイン完了を検証
+  1. Gmail API 初期化
+  2. ログイン済み確認（APIトークン取得成功ならスキップ）
+  3. kabuステーション未起動なら起動
+  4. ログインダイアログ待機（最大90秒）
+  5. 口座番号をWM_CHARで入力 → Enter×2（2FAメール送信）
+  6. GmailからOTPコード取得（最大120秒ポーリング）
+  7. 2FAフォーム表示待機（3秒）
+  8. OTPをWM_CHARで入力 → Enter
+  9. パスキー選択画面読み込み待機（5秒、CEFウィンドウ内に表示）
+  10. Tab×8 + Enter（パスキー選択スキップ）
+  11. API認証確認（最大120秒リトライ）
 
 【動作フロー（shutdownモード）】
   1. kabuステーションのメインウィンドウを探す
@@ -500,7 +502,7 @@ def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC)
 
 def handle_passkey_dialog(hwnd: int) -> bool:
     """
-    パスキー認証選択画面でTab×9、Enterを押下してパスキーをスキップし2FA送信を開始する。
+    パスキー認証選択画面でTab×8、Enterを押下してパスキーをスキップし2FA送信を開始する。
     スクリーンロック中でも動作するようPostMessage経由で操作する。
     """
     try:
