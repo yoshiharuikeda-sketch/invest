@@ -7,7 +7,7 @@
 
 **証券会社**: 三菱UFJ eスマート証券（旧auカブコム）  
 **API**: kabuステーション® REST API (localhost:18080)  
-**運用モード**: 現在 DRY RUN（`--execute` なし） → 本番移行検討中（2026-05-07時点）
+**運用モード**: 本番稼働中（`--execute` あり、2026-05-19より実発注開始）
 
 ---
 
@@ -153,9 +153,9 @@ XML修正時の注意: XMLファイルはUTF-16エンコーディング。PowerS
 - ポートフォリオ金額: `.env_windows` の `PORTFOLIO_VALUE`（現在: 990,000円）
 
 ### 発注モード
-- **デフォルト（DRY RUN）**: `run_daily.bat open/close` → シミュレーションのみ、実際の注文なし
-- **本番**: `kabu_order.py` に `--execute` フラグを追加して初めて実発注
-- 現在のステータス: DRY RUN中（2026-05-07時点）→ 本番移行検討中
+- **DRY RUN**: `run_daily.bat dry` → シミュレーションのみ、実際の注文なし
+- **本番（現在）**: `run_daily.bat open/close` → `--execute` フラグ付きで実発注
+- 現在のステータス: 本番稼働中（2026-05-19より実発注開始）
 
 ### kabuStation自動ログインフロー（2026-05 新仕様）
 kabuStationのログイン仕様変更に伴い `kabu_autologin.py` を更新済み（2026-04-28〜05-01）。
