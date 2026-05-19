@@ -1,11 +1,24 @@
 """
 パスキー選択画面でTabキーを100回押下してフォーカス移動を目視確認するテスト
-kabuStationのログインダイアログが表示された状態で実行すること
+kabuStationの起動からパスキー選択画面まで自動で進め、その後Tab×100を送信する
 """
+import sys
 import time
 import win32gui
 import win32api
 import win32con
+from pathlib import Path
+
+# kabu_autologin.pyの関数を再利用
+sys.path.insert(0, str(Path(__file__).parent))
+from kabu_autologin import (
+    launch_kabustation, is_kabustation_running,
+    get_gmail_service, fetch_2fa_code,
+    submit_account_number, enter_2fa_code,
+    find_login_dialog, log
+)
+from datetime import datetime, timezone
+
 
 def find_target():
     hwnd = win32gui.FindWindow(None, "ログイン")
@@ -29,14 +42,63 @@ def find_target():
     print(f"送信先: {cls} (hwnd={target})")
     return target
 
-print("パスキー選択画面を表示してください。15秒後にTabキー100回送信を開始します...")
-for i in range(15, 0, -1):
-    print(f"  {i}秒...", end="\r")
-    time.sleep(1)
-print()
 
-target = find_target()
-if target:
+def main():
+    # 1. Gmail API初期化
+    print("Gmail API 初期化中...")
+    try:
+        service = get_gmail_service()
+        print("Gmail API 接続OK")
+    except Exception as e:
+        print(f"Gmail API初期化失敗: {e}")
+        return
+
+    # 2. kabuStation起動
+    if not is_kabustation_running():
+        print("kabuStation起動中...")
+        if not launch_kabustation():
+            return
+        time.sleep(10)
+    else:
+        print("kabuStationは既に起動中")
+
+    # 3. ログインダイアログ待機
+    print("ログインダイアログ待機中...")
+    dialog = find_login_dialog()
+    if dialog is None:
+        print("ログインダイアログが見つかりません")
+        return
+
+    # 4. 口座番号入力 → Enter×2
+    login_time = datetime.now(timezone.utc)
+    print("口座番号入力 → Enter×2...")
+    if not submit_account_number():
+        return
+
+    # 5. 2FAコード取得
+    print("2FAコード待機中...")
+    code = fetch_2fa_code(service, since_dt=login_time)
+    if code is None:
+        print("2FAコード取得失敗")
+        return
+
+    # 6. 2FAコード入力
+    print(f"2FAコード入力: {code}")
+    time.sleep(3)
+    if not enter_2fa_code(code, dialog):
+        print("2FAコード入力失敗")
+        return
+
+    # 7. パスキー選択画面の読み込み待機
+    print("パスキー選択画面待機中（5秒）...")
+    time.sleep(5)
+
+    # 8. Tab×100送信
+    print("=== Tab×100送信開始 ===")
+    target = find_target()
+    if not target:
+        return
+
     for i in range(1, 101):
         win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
         time.sleep(0.05)
@@ -44,4 +106,9 @@ if target:
         time.sleep(0.2)
         if i % 10 == 0:
             print(f"{i}回完了")
+
     print("100回完了")
+
+
+if __name__ == "__main__":
+    main()
