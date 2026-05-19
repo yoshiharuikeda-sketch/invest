@@ -83,16 +83,13 @@ def main():
     if not target:
         return
 
-    # Shiftを押しっぱなしでTab×2
-    win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_SHIFT, 0x002A0001)
-    time.sleep(0.05)
-    for i in range(2):
+    # Tab×7
+    for i in range(7):
         win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
         time.sleep(0.1)
         win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
         time.sleep(0.3)
         print(f"Tab {i+1}回完了")
-    win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_SHIFT, 0xC02A0001)
 
     time.sleep(0.3)
     win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
