@@ -29,8 +29,11 @@ def find_target():
     print(f"送信先: {cls} (hwnd={target})")
     return target
 
-print("3秒後にTabキー100回送信を開始します...")
-time.sleep(3)
+print("パスキー選択画面を表示してください。15秒後にTabキー100回送信を開始します...")
+for i in range(15, 0, -1):
+    print(f"  {i}秒...", end="\r")
+    time.sleep(1)
+print()
 
 target = find_target()
 if target:
