@@ -694,8 +694,8 @@ def do_login() -> bool:
         log.info("パスキー選択画面読み込み待機（5秒）...")
         time.sleep(5)
 
-        # 10. Tab×8 + Enter（パスキー選択スキップ）
-        log.info("パスキー選択画面でTab×8 + Enter...")
+        # 10. Tab×7 + Enter（パスキー選択スキップ）
+        log.info("パスキー選択画面でTab×7 + Enter...")
         if not handle_passkey_dialog(dialog.handle):
             return False
 
