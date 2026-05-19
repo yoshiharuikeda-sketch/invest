@@ -77,21 +77,28 @@ def main():
     print("パスキー選択画面待機中（10秒）...")
     time.sleep(10)
 
-    # 8. Tab×100送信
-    print("=== Tab×100送信開始 ===")
+    # 8. Shift+Tab×2 + Enter 送信
+    print("=== Shift+Tab×2 + Enter 送信 ===")
     target = find_target()
     if not target:
         return
 
-    for i in range(1, 101):
-        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
+    for i in range(2):
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_SHIFT, 0x002A0001)
         time.sleep(0.05)
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
+        time.sleep(0.1)
         win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
-        time.sleep(0.2)
-        if i % 10 == 0:
-            print(f"{i}回完了")
+        time.sleep(0.05)
+        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_SHIFT, 0xC02A0001)
+        time.sleep(0.3)
+        print(f"Shift+Tab {i+1}回完了")
 
-    print("100回完了")
+    time.sleep(0.3)
+    win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
+    time.sleep(0.1)
+    win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
+    print("Enter送信完了")
 
 
 if __name__ == "__main__":
