@@ -13,11 +13,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from kabu_autologin import (
     launch_kabustation, is_kabustation_running,
-    get_gmail_service, fetch_2fa_code,
-    submit_account_number, enter_2fa_code,
+    get_gmail_service,
+    submit_account_number,
     find_login_dialog, log
 )
-from datetime import datetime, timezone
 
 
 def find_target():
@@ -70,28 +69,13 @@ def main():
         return
 
     # 4. 口座番号入力 → Enter×2
-    login_time = datetime.now(timezone.utc)
     print("口座番号入力 → Enter×2...")
     if not submit_account_number():
         return
 
-    # 5. 2FAコード取得
-    print("2FAコード待機中...")
-    code = fetch_2fa_code(service, since_dt=login_time)
-    if code is None:
-        print("2FAコード取得失敗")
-        return
-
-    # 6. 2FAコード入力
-    print(f"2FAコード入力: {code}")
-    time.sleep(3)
-    if not enter_2fa_code(code, dialog):
-        print("2FAコード入力失敗")
-        return
-
-    # 7. パスキー選択画面の読み込み待機
-    print("パスキー選択画面待機中（5秒）...")
-    time.sleep(5)
+    # 5. パスキー選択画面の読み込み待機（2FAスキップ、仮テスト用）
+    print("パスキー選択画面待機中（10秒）...")
+    time.sleep(10)
 
     # 8. Tab×100送信
     print("=== Tab×100送信開始 ===")
