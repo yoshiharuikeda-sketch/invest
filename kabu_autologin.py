@@ -1,4 +1,4 @@
-﻿"""
+"""
 kabuステーション® 自動起動・ログイン・終了スクリプト
 =====================================================
 【使い方】
@@ -63,8 +63,8 @@ CREDENTIALS_FILE = DIR / "credentials.json"
 TOKEN_FILE       = DIR / "token.json"
 
 # 2FAメール設定
-MAIL_SENDER_FILTER  = "mail.kabu.com"
-MAIL_SUBJECT_FILTER = "ワンタイム認証コード"
+MAIL_SENDER_FILTER  = "kabu.com"
+MAIL_SUBJECT_FILTER = "認証"
 CODE_PATTERN        = r"\b(\d{6})\b"
 INVALID_CODES       = {"000000", "222228", "111111"}
 
@@ -242,9 +242,10 @@ def fetch_2fa_code(service, since_dt: datetime, timeout_sec: int = AUTH_WAIT_SEC
     log.info(f"2FAメール待機中（最大{timeout_sec}秒）...")
     while time.time() < deadline:
         try:
-            query = f"from:{MAIL_SENDER_FILTER} subject:\"{MAIL_SUBJECT_FILTER}\" newer_than:1d"
+            query = (f"from:{MAIL_SENDER_FILTER} subject:{MAIL_SUBJECT_FILTER} "
+                     f"after:{int(since_dt.timestamp())}")
             results = service.users().messages().list(
-                userId="me", q=query, maxResults=10
+                userId="me", q=query, maxResults=5
             ).execute()
 
             for msg_ref in results.get("messages", []):
@@ -693,8 +694,8 @@ def do_login() -> bool:
         log.info("パスキー選択画面読み込み待機（5秒）...")
         time.sleep(5)
 
-        # 10. Tab×8 + Enter（パスキー選択スキップ）
-        log.info("パスキー選択画面でTab×8 + Enter...")
+        # 10. Tab×7 + Enter（パスキー選択スキップ）
+        log.info("パスキー選択画面でTab×7 + Enter...")
         if not handle_passkey_dialog(dialog.handle):
             return False
 
@@ -760,4 +761,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
