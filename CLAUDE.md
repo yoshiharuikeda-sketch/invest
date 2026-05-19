@@ -1,138 +1,215 @@
-﻿# 閾ｪ蜍募｣ｲ雋ｷ繧ｷ繧ｹ繝・Β 窶・Claude Code 繝励Ο繧ｸ繧ｧ繧ｯ繝郁ｨｭ螳・
-## 繝励Ο繧ｸ繧ｧ繧ｯ繝域ｦりｦ・
-**謌ｦ逡･**: 譌･邀ｳ讌ｭ遞ｮ繝ｪ繝ｼ繝峨Λ繧ｰ謚戊ｳ・姶逡･  
-蜑肴律縺ｮ邀ｳ蝗ｽ繧ｻ繧ｯ繧ｿ繝ｼETF・・PDR XL邉ｻ・峨・繝ｪ繧ｿ繝ｼ繝ｳ縺九ｉ縲∝ｽ捺律縺ｮ譌･譛ｬ繧ｻ繧ｯ繧ｿ繝ｼETF・域擲險ｼ1617縲・633・峨・繧ｷ繧ｰ繝翫Ν繧堤函謌舌＠縺ｦ繝医Ξ繝ｼ繝峨・
-**險ｼ蛻ｸ莨夂､ｾ**: 荳芽廠UFJ e繧ｹ繝槭・繝郁ｨｼ蛻ｸ・域立au繧ｫ繝悶さ繝・・ 
-**API**: kabu繧ｹ繝・・繧ｷ繝ｧ繝ｳﾂｮ REST API (localhost:18080)  
-**驕狗畑繝｢繝ｼ繝・*: 迴ｾ蝨ｨ DRY RUN・・--execute` 縺ｪ縺暦ｼ・竊・譚･騾ｱ莉･髯・譛ｬ逡ｪ莠亥ｮ・
+# 自動売買システム — Claude Code プロジェクト設定
+
+## プロジェクト概要
+
+**戦略**: 日米業種リードラグ投資戦略  
+前日の米国セクターETF（SPDR XL系）のリターンから、当日の日本セクターETF（東証1617〜1633）のシグナルを生成してトレード。
+
+**証券会社**: 三菱UFJ eスマート証券（旧auカブコム）  
+**API**: kabuステーション® REST API (localhost:18080)  
+**運用モード**: 本番稼働中（`--execute` あり、2026-05-19より実発注開始）
+
 ---
 
-## 繝・ぅ繝ｬ繧ｯ繝医Μ讒区・
+## ディレクトリ構成
 
 ```
 G:\My Drive\Claude Code\Invest\
-笏懌楳笏 CLAUDE.md              # 縺薙・繝輔ぃ繧､繝ｫ
-笏懌楳笏 .env_windows           # 迺ｰ蠅・､画焚 (KABU_API_PASSWORD, PORTFOLIO_VALUE)
-笏懌楳笏 config.py              # 繝代せ險ｭ螳夲ｼ・ac/Windows荳｡蟇ｾ蠢懶ｼ・笏・笏懌楳笏 daily_signal.py        # 繧ｷ繧ｰ繝翫Ν險育ｮ暦ｼ育ｱｳ蝗ｽ蜑肴律 竊・譌･譛ｬ蠖捺律・・笏懌楳笏 kabu_order.py          # 逋ｺ豕ｨ繝｢繧ｸ繝･繝ｼ繝ｫ・・RY RUN / 譛ｬ逡ｪ・・笏懌楳笏 kabu_autologin.py      # kabuStation閾ｪ蜍輔Ο繧ｰ繧､繝ｳ・・UI閾ｪ蜍募喧・・笏懌楳笏 monitor_agent.py       # 繝ｭ繧ｰ逶｣隕・竊・Gmail騾夂衍
-笏・笏懌楳笏 run_daily.bat          # 荳ｭ螟ｮ繝・ぅ繧ｹ繝代ャ繝√Ε (login/signal/open/close/shutdown/monitor)
-笏懌楳笏 invest_login.bat       # 繧ｿ繧ｹ繧ｯ繧ｹ繧ｱ繧ｸ繝･繝ｼ繝ｩ逕ｨ繝ｩ繝・ヱ繝ｼ
-笏懌楳笏 invest_signal.bat
-笏懌楳笏 invest_open.bat
-笏懌楳笏 invest_close.bat
-笏懌楳笏 invest_shutdown.bat
-笏懌楳笏 invest_monitor.bat
-笏・笏懌楳笏 task_invest_login.xml  # 繧ｿ繧ｹ繧ｯ繧ｹ繧ｱ繧ｸ繝･繝ｼ繝ｩ XML螳夂ｾｩ・・譛ｬ・・笏懌楳笏 task_invest_signal.xml
-笏懌楳笏 task_invest_open.xml
-笏懌楳笏 task_invest_close.xml
-笏懌楳笏 task_invest_shutdown.xml
-笏・笏懌楳笏 invest_import_tasks.bat   # 繧ｿ繧ｹ繧ｯ蜀咲匳骭ｲ・郁ｦ∫ｮ｡逅・・ｨｩ髯撰ｼ・笏懌楳笏 invest_import_tasks.ps1
-笏・笏懌楳笏 log_autologin.txt      # kabu_autologin.py / monitor_agent.py 縺ｮ繝ｭ繧ｰ
-笏懌楳笏 log_signal.txt         # daily_signal.py 縺ｮ繝ｭ繧ｰ
-笏披楳笏 log_order.txt          # kabu_order.py 縺ｮ繝ｭ繧ｰ
+├── CLAUDE.md              # このファイル
+├── .env_windows           # 環境変数 (KABU_API_PASSWORD, PORTFOLIO_VALUE)
+├── config.py              # パス設定（Mac/Windows両対応）
+│
+├── daily_signal.py        # シグナル計算（米国前日 → 日本当日）
+├── kabu_order.py          # 発注モジュール（DRY RUN / 本番）
+├── kabu_autologin.py      # kabuStation自動ログイン（GUI自動化）
+├── monitor_agent.py       # ログ監視 → Gmail通知
+│
+├── run_daily.bat          # 中央ディスパッチャ (login/signal/open/close/shutdown/monitor)
+├── invest_login.bat       # タスクスケジューラ用ラッパー
+├── invest_signal.bat
+├── invest_open.bat
+├── invest_close.bat
+├── invest_shutdown.bat
+├── invest_monitor.bat
+│
+├── task_invest_login.xml  # タスクスケジューラ XML定義（5本）
+├── task_invest_signal.xml
+├── task_invest_open.xml
+├── task_invest_close.xml
+├── task_invest_shutdown.xml
+│
+├── invest_import_tasks.bat   # タスク再登録（要管理者権限）
+├── invest_import_tasks.ps1
+│
+├── log_autologin.txt      # kabu_autologin.py / monitor_agent.py のログ
+├── log_signal.txt         # daily_signal.py のログ
+└── log_order.txt          # kabu_order.py のログ
 ```
 
 ---
 
-## 譌･谺｡繧ｹ繧ｱ繧ｸ繝･繝ｼ繝ｫ・医ち繧ｹ繧ｯ繧ｹ繧ｱ繧ｸ繝･繝ｼ繝ｩ・・
-| 譎ょ綾  | 繧ｿ繧ｹ繧ｯ蜷搾ｼ・ask Scheduler・・| 蜃ｦ逅・・螳ｹ                     |
-|-------|---------------------------|------------------------------|
-| 08:45 | invest_login              | kabuStation襍ｷ蜍・+ 2FA + API隱崎ｨｼ・・BS髱櫁｡ｨ遉ｺ襍ｷ蜍包ｼ・|
-| 08:50 | invest_signal             | daily_signal.py 竊・signal_YYYYMMDD.csv |
-| 09:00 | invest_open               | kabu_order.py・・RY RUN 逋ｺ豕ｨ・・|
-| 09:05 | 窶費ｼ域焔蜍・or 蛻･騾費ｼ・         | monitor_agent.py 竊・Gmail・域悃騾夂衍・・|
-| 09:10 | invest_morning_shutdown   | kabuStation邨ゆｺ・竊・PC閾ｪ辟ｶ繧ｹ繝ｪ繝ｼ繝励∈ |
-| 縲懊せ繝ｪ繝ｼ繝励・| | |
-| 15:10 | invest_afternoon_login    | kabuStation蜀崎ｵｷ蜍・+ 2FA + API隱崎ｨｼ |
-| 15:25 | invest_close              | kabu_order.py --close・・RY RUN 豎ｺ貂茨ｼ・|
-| 15:30 | invest_shutdown           | kabuStation邨ゆｺ・ｼ・BS髱櫁｡ｨ遉ｺ襍ｷ蜍包ｼ・|
-| 15:32 | 窶費ｼ域焔蜍・or 蛻･騾費ｼ・         | monitor_agent.py 竊・Gmail・亥､暮夂衍・・|
+## 日次スケジュール（タスクスケジューラ）
 
-**繧ｿ繧ｹ繧ｯ逋ｻ骭ｲ繝輔ぃ繧､繝ｫ**: C:\Users\tropi\invest_import_tasks.ps1・育ｮ｡逅・・ｨｩ髯舌〒螳溯｡鯉ｼ・
+| 時刻  | タスク名（Task Scheduler） | 処理内容                     |
+|-------|---------------------------|------------------------------|
+| **08:47** | invest_login          | kabuStation起動 + 2FA + API認証（VBS非表示起動） |
+| 08:50 | invest_signal             | daily_signal.py → signal_YYYYMMDD.csv |
+| 09:00 | invest_open               | kabu_order.py（DRY RUN 発注） |
+| 09:05 | —（手動 or 別途）          | monitor_agent.py → Gmail（朝通知） |
+| 09:10 | invest_morning_shutdown   | kabuStation終了 → PC自然スリープへ |
+| 〜スリープ〜 | | |
+| 15:10 | invest_afternoon_login    | kabuStation再起動 + 2FA + API認証 |
+| 15:25 | invest_close              | kabu_order.py --close（DRY RUN 決済） |
+| 15:30 | invest_shutdown           | kabuStation終了（VBS非表示起動） |
+| 15:32 | —（手動 or 別途）          | monitor_agent.py → Gmail（夕通知） |
+
+**タスク登録ファイル**: C:\Users\tropi\invest_import_tasks.ps1（管理者権限で実行）
+
 ---
 
-## 謇句虚螳溯｡後さ繝槭Φ繝・
+## 自動ログインテスト
+
+```powershell
+# スリープ不要の手動テスト（ログイン動作確認用）
+powershell.exe -ExecutionPolicy Bypass -File "G:\My Drive\Claude Code\Invest\invest_test_autologin.ps1"
+```
+
+---
+
+## 手動実行コマンド
+
 ```bat
-# 繧ｷ繧ｰ繝翫Ν遒ｺ隱・run_daily.bat signal
+# シグナル確認
+run_daily.bat signal
 
-# DRY RUN 逋ｺ豕ｨ繝・せ繝・run_daily.bat dry
+# DRY RUN 発注テスト
+run_daily.bat dry
 
-# 譛ｬ逡ｪ逋ｺ豕ｨ・郁ｦ・--execute 繝輔Λ繧ｰ螟画峩・・run_daily.bat open
+# 本番発注（要 --execute フラグ変更）
+run_daily.bat open
 
-# 繝ｭ繧ｰ遒ｺ隱・type log_autologin.txt
+# ログ確認
+type log_autologin.txt
 type log_signal.txt
 type log_order.txt
 
-# 莉頑律縺ｮ繧ｷ繧ｰ繝翫ΝCSV・遺ｻ繝輔ぃ繧､繝ｫ蜷阪・邀ｳ蝗ｽ蟶ょｴ縺ｮ譌･莉・= 譌･譛ｬ縺ｮ蜑榊霧讌ｭ譌･・・# 萓・ 譌･譛ｬ04-22縺ｮ蜿門ｼ・竊・signal_20260421.csv・亥燕譌･縺ｮ邀ｳ蝗ｽ04-21繝・・繧ｿ・・type signal_YYYYMMDD.csv
+# 今日のシグナルCSV（※ファイル名は米国市場の日付 = 日本の前営業日）
+# 例: 日本04-22の取引 → signal_20260421.csv（前日の米国04-21データ）
+type signal_YYYYMMDD.csv
 
-# 謳咲寢險育ｮ暦ｼ亥・譌･・・python -X utf8 calc_pnl.py
+# 損益計算（全日）
+python -X utf8 calc_pnl.py
 
-# 謳咲寢險育ｮ暦ｼ育音螳壽律: 邀ｳ蝗ｽ蟶ょｴ譌･莉倥〒謖・ｮ夲ｼ・python -X utf8 calc_pnl.py 20260421
+# 損益計算（特定日: 米国市場日付で指定）
+python -X utf8 calc_pnl.py 20260421
 ```
 
 ---
 
-## 繧ｿ繧ｹ繧ｯ繧ｹ繧ｱ繧ｸ繝･繝ｼ繝ｩ縺ｮ蜀咲匳骭ｲ
+## タスクスケジューラの再登録
 
-**蠢・★邂｡逅・・ｨｩ髯舌〒螳溯｡後☆繧九％縺ｨ**・育ｮ｡逅・・ｨｩ髯舌↑縺励〒縺ｯ Set-ScheduledTask 縺悟､ｱ謨励☆繧具ｼ・
+**必ず管理者権限で実行すること**（管理者権限なしでは Set-ScheduledTask が失敗する）
+
 ```bat
-# 邂｡逅・・さ繝槭Φ繝峨・繝ｭ繝ｳ繝励ヨ縺ｧ
+# 管理者コマンドプロンプトで
 invest_import_tasks.bat
 ```
 
-XML菫ｮ豁｣譎ゅ・豕ｨ諢・ XML繝輔ぃ繧､繝ｫ縺ｯUTF-16繧ｨ繝ｳ繧ｳ繝ｼ繝・ぅ繝ｳ繧ｰ縲１owerShell縺ｧ邱ｨ髮・☆繧句ｴ蜷医・  
-`[System.IO.File]::ReadAllText(..., [Text.Encoding]::Unicode)` 繧剃ｽｿ縺・％縺ｨ縲・
+XML修正時の注意: XMLファイルはUTF-16エンコーディング。PowerShellで編集する場合は  
+`[System.IO.File]::ReadAllText(..., [Text.Encoding]::Unicode)` を使うこと。
+
 ---
 
-## 驥崎ｦ√↑譌｢遏･莠矩・・豕ｨ諢冗せ
+## 重要な既知事項・注意点
 
-### 繧ｷ繧ｰ繝翫Ν繝輔ぃ繧､繝ｫ縺ｮ蜻ｽ蜷崎ｦ丞援
-- 繝輔ぃ繧､繝ｫ蜷阪・**邀ｳ蝗ｽ蟶ょｴ縺ｮ譌･莉・*・域律譛ｬ縺ｮ蜑榊霧讌ｭ譌･・峨〒菫晏ｭ倥＆繧後ｋ
-- 萓・ 譌･譛ｬ 04-22 縺ｮ蜿門ｼ輔す繧ｰ繝翫Ν 竊・`signal_20260421.csv`・亥燕譌･縺ｮ邀ｳ蝗ｽ 04-21 繝・・繧ｿ・・- `calc_pnl.py` 縺ｫ貂｡縺呎律莉伜ｼ墓焚繧らｱｳ蝗ｽ蟶ょｴ譌･莉倥〒謖・ｮ壹☆繧九％縺ｨ
-- 縲御ｻ頑律縺ｮ繧ｷ繧ｰ繝翫Ν縺後↑縺・阪→諤昴▲縺溘ｉ蜑榊霧讌ｭ譌･縺ｮ繝輔ぃ繧､繝ｫ蜷阪ｒ遒ｺ隱阪☆繧九％縺ｨ
+### シグナルファイルの命名規則
+- ファイル名は**米国市場の日付**（日本の前営業日）で保存される
+- 例: 日本 04-22 の取引シグナル → `signal_20260421.csv`（前日の米国 04-21 データ）
+- `calc_pnl.py` に渡す日付引数も米国市場日付で指定すること
+- 「今日のシグナルがない」と思ったら前営業日のファイル名を確認すること
 
-### 繝ｭ繧ｰ繝輔ぃ繧､繝ｫ縺ｮ遶ｶ蜷・- `kabu_autologin.py` / `monitor_agent.py` 縺ｯ `logging.basicConfig(filename=...)` 縺ｧ蜀・Κ逧・↓繝輔ぃ繧､繝ｫ繧帝幕縺・- `run_daily.bat` 縺ｧ `>> log_autologin.txt 2>&1` 繧・*霑ｽ蜉縺励※縺ｯ縺・￠縺ｪ縺・*・亥酔荳繝輔ぃ繧､繝ｫ繧剃ｺ碁㍾繧ｪ繝ｼ繝励Φ 竊・PermissionError・・- `daily_signal.py` / `kabu_order.py` 縺ｯ讓呎ｺ門・蜉帙・縺ｿ 竊・bat蛛ｴ縺ｮ `>> log_*.txt 2>&1` 縺ｧ繝ｪ繝繧､繝ｬ繧ｯ繝・
-### 邂｡逅・・ｨｩ髯舌→G繝峨Λ繧､繝・- Windows縺ｧ縺ｯ**邂｡逅・・ｨｩ髯舌〒螳溯｡後☆繧九→G繝峨Λ繧､繝厄ｼ・oogle Drive・峨′繝槭ャ繝励＆繧後↑縺・*
-- 繧ｿ繧ｹ繧ｯ繧ｹ繧ｱ繧ｸ繝･繝ｼ繝ｩ縺ｮ繧ｿ繧ｹ繧ｯ譛ｬ菴薙・G繝峨Λ繧､繝悶∈繧｢繧ｯ繧ｻ繧ｹ縺励↑縺・ｼ医Λ繝・ヱ繝ｼbat縺茎etlocal縺ｧ繝代せ繧定ｧ｣豎ｺ・・- 邂｡逅・・さ繝槭Φ繝峨・繝ｭ繝ｳ繝励ヨ縺九ｉG繝峨Λ繧､繝悶・繝輔ぃ繧､繝ｫ繧堤峩謗･螳溯｡後☆繧句ｴ蜷医・ `net use G: \\...` 縺悟ｿ・ｦ√↑蝣ｴ蜷医≠繧・
-### PowerShell縺ｮ繧ｨ繝ｳ繧ｳ繝ｼ繝・ぅ繝ｳ繧ｰ
-- PowerShell 5.x 縺ｯ CP932 縺ｧ隱ｭ繧縺溘ａ縲￣S1繝輔ぃ繧､繝ｫ縺ｫ譌･譛ｬ隱槭ｒ蜷ｫ繧√ｋ縺ｨ parse error 縺ｫ縺ｪ繧・- PS1繝輔ぃ繧､繝ｫ縺ｯ**闍ｱ隱槭・縺ｿ**縺ｧ險倩ｿｰ縺吶ｋ縺薙→
+### ログファイルの競合
+- `kabu_autologin.py` / `monitor_agent.py` は `logging.basicConfig(filename=...)` で内部的にファイルを開く
+- `run_daily.bat` で `>> log_autologin.txt 2>&1` を**追加してはいけない**（同一ファイルを二重オープン → PermissionError）
+- `daily_signal.py` / `kabu_order.py` は標準出力のみ → bat側の `>> log_*.txt 2>&1` でリダイレクト
 
-### Python迺ｰ蠅・- Python螳溯｡後ヵ繧｡繧､繝ｫ: `C:\Users\tropi\AppData\Local\Python\pythoncore-3.14-64\python.exe`
-- `run_daily.bat` 蜀帝ｭ縺ｧ `SET PATH=...` 繧呈・遉ｺ險ｭ螳壹＠縺ｦ縺・ｋ・医ち繧ｹ繧ｯ繧ｹ繧ｱ繧ｸ繝･繝ｼ繝ｩ迺ｰ蠅・〒縺ｯPATH縺御ｸ榊ｮ悟・縺ｪ縺溘ａ・・
-### kabu繧ｹ繝・・繧ｷ繝ｧ繝ｳﾂｮ API
+### 管理者権限とGドライブ
+- Windowsでは**管理者権限で実行するとGドライブ（Google Drive）がマップされない**
+- タスクスケジューラのタスク本体はGドライブへアクセスしない（ラッパーbatがsetlocalでパスを解決）
+- 管理者コマンドプロンプトからGドライブのファイルを直接実行する場合は `net use G: \\...` が必要な場合あり
+
+### PowerShellのエンコーディング
+- PowerShell 5.x は CP932 で読むため、PS1ファイルに日本語を含めると parse error になる
+- PS1ファイルは**英語のみ**で記述すること
+
+### Python環境
+- Python実行ファイル: `C:\Users\tropi\AppData\Local\Python\pythoncore-3.14-64\python.exe`
+- `run_daily.bat` 冒頭で `SET PATH=...` を明示設定している（タスクスケジューラ環境ではPATHが不完全なため）
+
+### kabuステーション® API
 - REST: `http://localhost:18080/kabusapi/`
 - WebSocket: `ws://localhost:18081/kabusapi/websocket`
-- API繝代せ繝ｯ繝ｼ繝・ `.env_windows` 縺ｮ `KABU_API_PASSWORD`
-- 繝昴・繝医ヵ繧ｩ繝ｪ繧ｪ驥鷹｡・ `.env_windows` 縺ｮ `PORTFOLIO_VALUE`・育樟蝨ｨ: 990,000蜀・ｼ・
-### 逋ｺ豕ｨ繝｢繝ｼ繝・- **繝・ヵ繧ｩ繝ｫ繝茨ｼ・RY RUN・・*: `run_daily.bat open/close` 竊・繧ｷ繝溘Η繝ｬ繝ｼ繧ｷ繝ｧ繝ｳ縺ｮ縺ｿ縲∝ｮ滄圀縺ｮ豕ｨ譁・↑縺・- **譛ｬ逡ｪ**: `kabu_order.py` 縺ｫ `--execute` 繝輔Λ繧ｰ繧定ｿｽ蜉縺励※蛻昴ａ縺ｦ螳溽匱豕ｨ
-- 迴ｾ蝨ｨ縺ｮ繧ｹ繝・・繧ｿ繧ｹ: DRY RUN騾ｱ・・026-04-14縲懶ｼ俄・ 譚･騾ｱ莉･髯肴悽逡ｪ讀懆ｨ・
+- APIパスワード: `.env_windows` の `KABU_API_PASSWORD`
+- ポートフォリオ金額: `.env_windows` の `PORTFOLIO_VALUE`（現在: 990,000円）
+
+### 発注モード
+- **DRY RUN**: `run_daily.bat dry` → シミュレーションのみ、実際の注文なし
+- **本番（現在）**: `run_daily.bat open/close` → `--execute` フラグ付きで実発注
+- 現在のステータス: 本番稼働中（2026-05-19より実発注開始）
+
+### kabuStation自動ログインフロー（2026-05 新仕様）
+kabuStationのログイン仕様変更に伴い `kabu_autologin.py` を更新済み（2026-04-28〜05-01）。
+
+**ログインステップ順序（重要）:**
+1. Gmail API初期化
+2. ログイン済み確認（スキップ判定）
+3. kabuStation未起動なら起動
+4. ログインダイアログ待機（最大90秒）
+5. 口座番号をWM_CHARで入力 → Enter×2（これで2FAメール送信される）
+6. GmailからOTPコード取得（最大120秒ポーリング）
+7. 2FAフォーム表示待機（3秒）
+8. OTPをWM_CHARで入力 → Enter
+9. パスキー選択画面読み込み待機（5秒）
+10. Shift+Tab×1 + Enter（パスキー選択スキップ、広告増減に依存しない）
+11. API認証確認（最大120秒）
+
+**重要な実装ルール:**
+- 口座番号・2FAコード入力時はフォーカス操作（WM_ACTIVATE / WM_SETFOCUS）を**送らない**（カーソルが外れる原因）
+- 口座番号・2FAコード入力時はDOM起点クリック（WM_LBUTTONDOWN）も**送らない**（同上）
+- 口座番号・OTP入力ともにカーソルは起動時から正しい位置にある
+- パスキー選択画面ではDOM起点クリックは使用可能（入力フィールドではないため）
+- パスキー選択ウィンドウは独立した新ウィンドウではなく既存CEFウィンドウ内に表示される
+
 ---
 
-## 迺ｰ蠅・､画焚・・env_windows・・
+## 環境変数（.env_windows）
+
 ```
-KABU_API_PASSWORD=<API繝代せ繝ｯ繝ｼ繝・
+KABU_API_PASSWORD=<APIパスワード>
 PORTFOLIO_VALUE=990000
+KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 ```
 
 ---
 
-## 繧ｻ繧ｯ繧ｿ繝ｼETF蟇ｾ蠢懆｡ｨ・域擲險ｼ・・
-| 繝・ぅ繝・き繝ｼ | 繧ｻ繧ｯ繧ｿ繝ｼ蜷・      |
-|------------|------------------|
-| 1617.T     | 鬟溷刀             |
-| 1618.T     | 繧ｨ繝阪Ν繧ｮ繝ｼ雉・ｺ・  |
-| 1619.T     | 蟒ｺ險ｭ繝ｻ雉・攝       |
-| 1620.T     | 邏譚舌・蛹門ｭｦ       |
-| 1621.T     | 蛹ｻ阮ｬ蜩・          |
-| 1622.T     | 閾ｪ蜍戊ｻ翫・霈ｸ騾∵ｩ・  |
-| 1623.T     | 驩・蕎繝ｻ髱樣延       |
-| 1624.T     | 讖滓｢ｰ             |
-| 1625.T     | 髮ｻ讖溘・邊ｾ蟇・      |
-| 1626.T     | 諠・ｱ騾壻ｿ｡繝ｻ繧ｵ繝ｼ繝薙せ |
-| 1627.T     | 髮ｻ蜉帙・繧ｬ繧ｹ       |
-| 1628.T     | 驕玖ｼｸ繝ｻ迚ｩ豬・      |
-| 1629.T     | 蝠・､ｾ繝ｻ蜊ｸ螢ｲ       |
-| 1630.T     | 蟆丞｣ｲ             |
-| 1631.T     | 驫陦・            |
-| 1632.T     | 驥題檮・磯勁縺城橿陦鯉ｼ・|
-| 1633.T     | 荳榊虚逕｣           |
+## セクターETF対応表（東証）
 
+| ティッカー | セクター名       |
+|------------|------------------|
+| 1617.T     | 食品             |
+| 1618.T     | エネルギー資源   |
+| 1619.T     | 建設・資材       |
+| 1620.T     | 素材・化学       |
+| 1621.T     | 医薬品           |
+| 1622.T     | 自動車・輸送機   |
+| 1623.T     | 鉄鋼・非鉄       |
+| 1624.T     | 機械             |
+| 1625.T     | 電機・精密       |
+| 1626.T     | 情報通信・サービス |
+| 1627.T     | 電力・ガス       |
+| 1628.T     | 運輸・物流       |
+| 1629.T     | 商社・卸売       |
+| 1630.T     | 小売             |
+| 1631.T     | 銀行             |
+| 1632.T     | 金融（除く銀行） |
+| 1633.T     | 不動産           |
