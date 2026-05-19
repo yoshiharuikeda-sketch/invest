@@ -16,7 +16,7 @@ kabuステーション® 自動起動・ログイン・終了スクリプト
   7. 2FAフォーム表示待機（3秒）
   8. OTPをWM_CHARで入力 → Enter
   9. パスキー選択画面読み込み待機（5秒、CEFウィンドウ内に表示）
-  10. Tab×8 + Enter（パスキー選択スキップ）
+  10. Shift+Tab×1 + Enter（パスキー選択スキップ、広告増減に依存しない）
   11. API認証確認（最大120秒リトライ）
 
 【動作フロー（shutdownモード）】
@@ -502,7 +502,7 @@ def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC)
 
 def handle_passkey_dialog(hwnd: int) -> bool:
     """
-    パスキー認証選択画面でTab×8、Enterを押下してパスキーをスキップし2FA送信を開始する。
+    パスキー認証選択画面でShift+Tab×1、Enterを押下してパスキーをスキップし2FA送信を開始する。
     スクリーンロック中でも動作するようPostMessage経由で操作する。
     """
     try:
@@ -536,13 +536,15 @@ def handle_passkey_dialog(hwnd: int) -> bool:
         log.info(f"DOM起点クリック: client({cx}, {cy})")
         time.sleep(0.5)
 
-        # Tab×8回でボタンにフォーカスを移動
-        for i in range(8):
-            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
-            time.sleep(0.1)
-            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
-            time.sleep(0.15)
-        log.info("Tabキー×8回完了")
+        # Shift+Tab×1回でボタンにフォーカスを移動（広告追加時もずれない）
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_SHIFT, 0x002A0001)
+        time.sleep(0.05)
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
+        time.sleep(0.1)
+        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
+        time.sleep(0.05)
+        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_SHIFT, 0xC02A0001)
+        log.info("Shift+Tabキー×1回完了")
         time.sleep(0.3)
 
         # Enter（2FA送信トリガー）
