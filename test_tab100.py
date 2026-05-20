@@ -83,8 +83,8 @@ def main():
     if not target:
         return
 
-    # Tab×7
-    for i in range(7):
+    # Tab×5
+    for i in range(5):
         win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
         time.sleep(0.1)
         win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
