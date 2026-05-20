@@ -12,9 +12,9 @@ kabuステーション® 自動起動・ログイン・終了スクリプト
   3. kabuステーション未起動なら起動
   4. ログインダイアログ待機（最大90秒）
   5. 口座番号をWM_CHARで入力 → Enter×2（2FAメール送信）
-  6. GmailからOTPコード取得（最大120秒ポーリング）
-  7. 2FAフォーム表示待機（3秒）
-  8. OTPをWM_CHARで入力 → Enter
+  6. GmailからOTPコード取得（最大30秒）、未着の場合はスキップ
+  7. 2FAフォーム表示待機（3秒）※2FAあり時のみ
+  8. OTPをWM_CHARで入力 → Enter ※2FAあり時のみ
   9. パスキー選択画面読み込み待機（5秒、CEFウィンドウ内に表示）
   10. Tab×7 + Enter（パスキー選択スキップ）
   11. API認証確認（最大120秒リトライ）
@@ -676,19 +676,18 @@ def do_login() -> bool:
         if not submit_account_number():
             return False
 
-        # 6. 2FAコードをGmailから取得
-        code = fetch_2fa_code(service, since_dt=login_time)
+        # 6. 2FAコードをGmailから取得（最大30秒、短時間で2回目ログイン時はメール不着の場合あり）
+        code = fetch_2fa_code(service, since_dt=login_time, timeout_sec=30)
         if code is None:
-            log.error("2FAコード取得失敗 → 自動ログイン中断")
-            return False
+            log.info("2FAコード未着（30秒）→ 2FAスキップしてパスキー選択へ進む")
+        else:
+            # 7. 2FAフォームが表示されるまで待つ
+            time.sleep(3)
 
-        # 7. 2FAフォームが表示されるまで待つ
-        time.sleep(3)
-
-        # 8. コードを入力して「続ける」ボタンを押す
-        if not enter_2fa_code(code, dialog):
-            log.error("2FAコード入力失敗")
-            return False
+            # 8. コードを入力して「続ける」ボタンを押す
+            if not enter_2fa_code(code, dialog):
+                log.error("2FAコード入力失敗")
+                return False
 
         # 9. パスキー選択画面の読み込みを待つ（CEFウィンドウ内に表示される）
         log.info("パスキー選択画面読み込み待機（5秒）...")
