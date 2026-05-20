@@ -1,23 +1,11 @@
 =================================================================
-  kabuステーションAPI 発注実行
-  実行時刻: 2026-04-09 09:00:03
-  運用資産: 990,000円
-=================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: 401 Client Error: Unauthorized for url: http://localhost:18080/kabusapi/token
 =================================================================
-  kabuステーションAPI 発注実行
-  実行時刻: 2026-04-09 15:25:04
-  運用資産: 990,000円
-=================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: 401 Client Error: Unauthorized for url: http://localhost:18080/kabusapi/token
-=================================================================
-  kabuステーションAPI 発注実行
-  実行時刻: 2026-04-10 15:25:03
-  運用資産: 990,000円
 =================================================================
 
 【1. 認証】
@@ -63,10 +51,6 @@
 
 === 完了 ===
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-14 09:00:02
-  運用資産: 990,000円
-=================================================================
 
 【1. 認証】
   ✅ トークン取得成功
@@ -102,10 +86,6 @@
 
 === 完了 ===
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-14 15:25:04
-  運用資産: 990,000円
-=================================================================
 
 【1. 認証】
 
@@ -139,10 +119,6 @@
   実発注するには --execute オプションを付けて実行してください
 
 === 完了 ===
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-15 09:00:15
-  運用資産: 990,000円
 =================================================================
 
 【1. 認証】
@@ -179,10 +155,6 @@
 
 === 完了 ===
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-15 15:25:04
-  運用資産: 990,000円
-=================================================================
 
 【1. 認証】
 
@@ -217,49 +189,25 @@
 
 === 完了 ===
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-17 09:00:02
-  運用資産: 990,000円
+
+【1. 認証】
+  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-17 15:25:05
-  運用資産: 990,000円
-=================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-21 09:00:03
-  運用資産: 990,000円
-=================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-21 15:25:03
-  運用資産: 990,000円
-=================================================================
-
-【1. 認証】
-  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-22 09:00:06
-  運用資産: 990,000円
 =================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: 401 Client Error: Unauthorized for url: http://localhost:18080/kabusapi/token
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-22 15:25:02
-  運用資産: 990,000円
 =================================================================
 
 【1. 認証】
@@ -296,33 +244,17 @@
 
 === 完了 ===
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-23 09:00:02
-  運用資産: 990,000円
+
+【1. 認証】
+  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-23 15:25:12
-  運用資産: 990,000円
-=================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-24 09:00:02
-  運用資産: 990,000円
-=================================================================
-
-【1. 認証】
-  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-24 15:25:04
-  運用資産: 990,000円
 =================================================================
 
 【1. 認証】
@@ -359,121 +291,61 @@
 
 === 完了 ===
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-27 09:00:02
-  運用資産: 990,000円
+
+【1. 認証】
+  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-27 15:25:04
-  運用資産: 990,000円
+
+【1. 認証】
+  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-28 09:00:01
-  運用資産: 990,000円
+
+【1. 認証】
+  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-28 15:25:04
-  運用資産: 990,000円
+
+【1. 認証】
+  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-29 09:00:10
-  運用資産: 990,000円
+
+【1. 認証】
+  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-29 15:25:10
-  運用資産: 990,000円
+
+【1. 認証】
+  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-30 09:00:02
-  運用資産: 990,000円
-=================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-04-30 15:25:05
-  運用資産: 990,000円
-=================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-05-01 09:00:03
-  運用資産: 990,000円
-=================================================================
-
-【1. 認証】
-  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-05-01 15:25:03
-  運用資産: 990,000円
-=================================================================
-
-【1. 認証】
-  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-05-04 09:00:02
-  運用資産: 990,000円
-=================================================================
-
-【1. 認証】
-  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-05-04 15:25:03
-  運用資産: 990,000円
-=================================================================
-
-【1. 認証】
-  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-05-07 09:00:03
-  運用資産: 990,000円
-=================================================================
-
-【1. 認証】
-  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-05-07 15:25:03
-  運用資産: 990,000円
-=================================================================
-
-【1. 認証】
-  ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-05-08 09:00:03
-  運用資産: 990,000円
 =================================================================
 
 【1. 認証】
@@ -510,10 +382,6 @@
 
 === 完了 ===
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-05-08 15:25:05
-  運用資産: 990,000円
-=================================================================
 
 【1. 認証】
 
@@ -546,10 +414,6 @@
   実発注するには --execute オプションを付けて実行してください
 
 === 完了 ===
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-05-11 09:00:02
-  運用資産: 990,000円
 =================================================================
 
 【1. 認証】
@@ -586,10 +450,6 @@
 
 === 完了 ===
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-05-11 15:25:03
-  運用資産: 990,000円
-=================================================================
 
 【1. 認証】
 
@@ -623,17 +483,9 @@
 
 === 完了 ===
 =================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-05-12 09:00:02
-  運用資産: 990,000円
-=================================================================
 
 【1. 認証】
   ❌ トークン取得失敗: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
-=================================================================
-  kabuステーションAPI 発注確認（DRY RUN）
-  実行時刻: 2026-05-12 15:25:03
-  運用資産: 990,000円
 =================================================================
 
 【1. 認証】
