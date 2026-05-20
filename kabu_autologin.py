@@ -16,8 +16,8 @@ kabuステーション® 自動起動・ログイン・終了スクリプト
   7. 2FAフォーム表示待機（3秒）※2FAあり時のみ
   8. OTPをWM_CHARで入力 → Enter ※2FAあり時のみ
   9. パスキー選択画面読み込み待機（5秒、CEFウィンドウ内に表示）
-  10. スクリーンショットでオレンジボタン検出 → 65px下の「パスキーなしで続行」をクリック
-      （スクリーンロック中など検出不可時は固定座標(580,485)にフォールバック）
+  10. スクリーンショットでオレンジボタン「パスキーを作成」を検出してクリック → Tab×1 → Enter
+      （検出不可時は固定座標(580,420)にフォールバックして同様にTab+Enter）
   11. API認証確認（最大120秒リトライ）
 
 【動作フロー（shutdownモード）】
@@ -503,10 +503,10 @@ def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC)
 
 def handle_passkey_dialog(hwnd: int) -> bool:
     """
-    パスキー選択画面で「パスキーなしで続行」ボタンをクリックする。
-    オレンジ色の「パスキーを作成」ボタンをスクリーンショットで検出し、
-    その65px下の「パスキーなしで続行」をPostMessageでクリックする。
-    検出失敗時は固定クライアント座標(580, 485)にフォールバックする。
+    パスキー選択画面で「パスキーなしで続行」を選択する。
+    オレンジ色の「パスキーを作成」ボタンをスクリーンショットで検出してクリックし、
+    Tab×1 → Enter でフォーカスを「パスキーなしで続行」に移動して決定する。
+    検出失敗時は固定クライアント座標(580, 420)をクリックしてからTab+Enterを送る。
     """
     try:
         # CEFウィンドウ取得
@@ -535,27 +535,36 @@ def handle_passkey_dialog(hwnd: int) -> bool:
         )
 
         if orange_x is not None:
-            # 「パスキーなしで続行」はオレンジボタンの65px下
-            skip_screen_x = orange_x
-            skip_screen_y = orange_y + 65
             log.info(f"オレンジボタン検出: screen({orange_x}, {orange_y})")
-            log.info(f"「パスキーなしで続行」推定位置: screen({skip_screen_x}, {skip_screen_y})")
-            client_pt = win32gui.ScreenToClient(target, (skip_screen_x, skip_screen_y))
+            client_pt = win32gui.ScreenToClient(target, (orange_x, orange_y))
             cx, cy = client_pt
         else:
-            # スクリーンロック中などで検出不可 → 固定クライアント座標
-            cx, cy = 580, 485
+            cx, cy = 580, 420
             log.warning(f"オレンジボタン未検出（スクリーンロック中？）→ 固定座標: client({cx}, {cy})")
 
+        # 「パスキーを作成」ボタンをクリックしてフォーカスを設定
         lparam = win32api.MAKELONG(cx, cy)
         win32api.PostMessage(target, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lparam)
         time.sleep(0.1)
         win32api.PostMessage(target, win32con.WM_LBUTTONUP, 0, lparam)
-        log.info(f"「パスキーなしで続行」クリック完了: client({cx}, {cy})")
+        log.info(f"「パスキーを作成」クリック（フォーカス設定）: client({cx}, {cy})")
+        time.sleep(0.5)
+
+        # Tab×1 で「パスキーなしで続行」にフォーカス移動
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
+        time.sleep(0.1)
+        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
+        time.sleep(0.3)
+
+        # Enter で決定
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
+        time.sleep(0.1)
+        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
+        log.info("「パスキーを作成」フォーカス → Tab×1 → Enter 完了")
         return True
 
     except Exception as e:
-        log.error(f"パスキー選択画面クリック失敗: {e}")
+        log.error(f"パスキー選択画面操作失敗: {e}")
         return False
 
 
