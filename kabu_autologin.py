@@ -16,7 +16,8 @@ kabuステーション® 自動起動・ログイン・終了スクリプト
   7. 2FAフォーム表示待機（3秒）※2FAあり時のみ
   8. OTPをWM_CHARで入力 → Enter ※2FAあり時のみ
   9. パスキー選択画面読み込み待機（5秒、CEFウィンドウ内に表示）
-  10. Tab×N + Enter（パスキー選択スキップ：2FAあり=7回、2FAスキップ時=5回）
+  10. スクリーンショットでオレンジボタン検出 → 65px下の「パスキーなしで続行」をクリック
+      （スクリーンロック中など検出不可時は固定座標(580,485)にフォールバック）
   11. API認証確認（最大120秒リトライ）
 
 【動作フロー（shutdownモード）】
@@ -500,13 +501,15 @@ def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC)
     return None
 
 
-def handle_passkey_dialog(hwnd: int, tab_count: int = 7) -> bool:
+def handle_passkey_dialog(hwnd: int) -> bool:
     """
-    パスキー認証選択画面でTab×tab_count、Enterを押下してパスキーをスキップする。
-    2FAあり時: tab_count=7、2FAスキップ時: tab_count=5
-    スクリーンロック中でも動作するようPostMessage経由で操作する。
+    パスキー選択画面で「パスキーなしで続行」ボタンをクリックする。
+    オレンジ色の「パスキーを作成」ボタンをスクリーンショットで検出し、
+    その65px下の「パスキーなしで続行」をPostMessageでクリックする。
+    検出失敗時は固定クライアント座標(580, 485)にフォールバックする。
     """
     try:
+        # CEFウィンドウ取得
         cef_hwnd = [None]
         def _find_cef(child_hwnd, _):
             if win32gui.GetClassName(child_hwnd) == "Chrome_RenderWidgetHostHWND":
@@ -517,44 +520,42 @@ def handle_passkey_dialog(hwnd: int, tab_count: int = 7) -> bool:
             win32gui.EnumChildWindows(hwnd, _find_cef, None)
         except Exception:
             pass
-
         target = cef_hwnd[0] or hwnd
-        log.info(f"パスキー選択ウィンドウ操作: {win32gui.GetClassName(target)} (hwnd={target})")
+        log.info(f"パスキー選択ウィンドウ: {win32gui.GetClassName(target)} (hwnd={target})")
 
-        win32api.PostMessage(target, win32con.WM_ACTIVATE, win32con.WA_ACTIVE, 0)
-        win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
-        time.sleep(0.3)
+        win_rect = win32gui.GetWindowRect(hwnd)
+        win_left, win_top, win_right, win_bottom = win_rect
 
-        # DOM起点クリックでフォーカスの起点を作る
-        target_rect = win32gui.GetWindowRect(target)
-        tw = target_rect[2] - target_rect[0]
-        th = target_rect[3] - target_rect[1]
-        cx, cy = int(tw * 0.50), int(th * 0.50)
-        c_lparam = win32api.MAKELONG(cx, cy)
-        win32api.PostMessage(target, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, c_lparam)
+        # オレンジ色の「パスキーを作成」ボタンをスクリーンショットから検出
+        orange_x, orange_y = _scan_orange_button(
+            y_min=win_top + 300,
+            y_max=win_bottom - 50,
+            x_min=win_left,
+            x_max=win_right,
+        )
+
+        if orange_x is not None:
+            # 「パスキーなしで続行」はオレンジボタンの65px下
+            skip_screen_x = orange_x
+            skip_screen_y = orange_y + 65
+            log.info(f"オレンジボタン検出: screen({orange_x}, {orange_y})")
+            log.info(f"「パスキーなしで続行」推定位置: screen({skip_screen_x}, {skip_screen_y})")
+            client_pt = win32gui.ScreenToClient(target, (skip_screen_x, skip_screen_y))
+            cx, cy = client_pt
+        else:
+            # スクリーンロック中などで検出不可 → 固定クライアント座標
+            cx, cy = 580, 485
+            log.warning(f"オレンジボタン未検出（スクリーンロック中？）→ 固定座標: client({cx}, {cy})")
+
+        lparam = win32api.MAKELONG(cx, cy)
+        win32api.PostMessage(target, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lparam)
         time.sleep(0.1)
-        win32api.PostMessage(target, win32con.WM_LBUTTONUP, 0, c_lparam)
-        log.info(f"DOM起点クリック: client({cx}, {cy})")
-        time.sleep(0.5)
-
-        # Tab×tab_count回でボタンにフォーカスを移動
-        for i in range(tab_count):
-            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
-            time.sleep(0.1)
-            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
-            time.sleep(0.15)
-        log.info(f"Tabキー×{tab_count}回完了")
-        time.sleep(0.3)
-
-        # Enter（2FA送信トリガー）
-        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
-        time.sleep(0.1)
-        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
-        log.info("Enterキー押下（パスキー選択完了 → 2FA送信）")
+        win32api.PostMessage(target, win32con.WM_LBUTTONUP, 0, lparam)
+        log.info(f"「パスキーなしで続行」クリック完了: client({cx}, {cy})")
         return True
 
     except Exception as e:
-        log.error(f"パスキー選択ウィンドウ操作失敗: {e}")
+        log.error(f"パスキー選択画面クリック失敗: {e}")
         return False
 
 
@@ -681,7 +682,6 @@ def do_login() -> bool:
         code = fetch_2fa_code(service, since_dt=login_time, timeout_sec=30)
         if code is None:
             log.info("2FAコード未着（30秒）→ 2FAスキップしてパスキー選択へ進む")
-            passkey_tab_count = 5
         else:
             # 7. 2FAフォームが表示されるまで待つ
             time.sleep(3)
@@ -690,15 +690,14 @@ def do_login() -> bool:
             if not enter_2fa_code(code, dialog):
                 log.error("2FAコード入力失敗")
                 return False
-            passkey_tab_count = 7
 
         # 9. パスキー選択画面の読み込みを待つ（CEFウィンドウ内に表示される）
         log.info("パスキー選択画面読み込み待機（5秒）...")
         time.sleep(5)
 
-        # 10. Tab×N + Enter（パスキー選択スキップ：2FAあり=7回、2FAスキップ=5回）
-        log.info(f"パスキー選択画面でTab×{passkey_tab_count} + Enter...")
-        if not handle_passkey_dialog(dialog.handle, tab_count=passkey_tab_count):
+        # 10. 「パスキーなしで続行」リンクをスクリーンショット+テンプレートマッチングでクリック
+        log.info("パスキー選択画面で「パスキーなしで続行」クリック...")
+        if not handle_passkey_dialog(dialog.handle):
             return False
 
         # 11. API確認でログイン完了を検証（最大STARTUP_WAIT_SEC秒リトライ）
