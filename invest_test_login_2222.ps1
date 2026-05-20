@@ -2,7 +2,7 @@ $action = New-ScheduledTaskAction `
     -Execute "wscript.exe" `
     -Argument '"G:\My Drive\Claude Code\Invest\invest_login_hidden.vbs"'
 
-$trigger = New-ScheduledTaskTrigger -Once -At "2026-05-20 21:43:00"
+$trigger = New-ScheduledTaskTrigger -Once -At "2026-05-20 22:22:00"
 
 $settings = New-ScheduledTaskSettingsSet `
     -WakeToRun `
@@ -13,11 +13,11 @@ $principal = New-ScheduledTaskPrincipal `
     -LogonType Interactive
 
 Register-ScheduledTask `
-    -TaskName "invest_test_login_2143" `
+    -TaskName "invest_test_login_2222" `
     -Action $action `
     -Trigger $trigger `
     -Settings $settings `
     -Principal $principal `
     -Force
 
-Write-Host "Test task registered: invest_test_login_2143 at 2026-05-20 21:43"
+Write-Host "Test task registered: invest_test_login_2222 at 2026-05-20 22:22"
