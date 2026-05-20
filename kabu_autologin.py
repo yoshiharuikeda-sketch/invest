@@ -16,7 +16,7 @@ kabuステーション® 自動起動・ログイン・終了スクリプト
   7. 2FAフォーム表示待機（3秒）※2FAあり時のみ
   8. OTPをWM_CHARで入力 → Enter ※2FAあり時のみ
   9. パスキー選択画面読み込み待機（5秒、CEFウィンドウ内に表示）
-  10. Tab×5 + Enter（パスキー選択スキップ）
+  10. Tab×N + Enter（パスキー選択スキップ：2FAあり=7回、2FAスキップ時=5回）
   11. API認証確認（最大120秒リトライ）
 
 【動作フロー（shutdownモード）】
@@ -500,9 +500,10 @@ def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC)
     return None
 
 
-def handle_passkey_dialog(hwnd: int) -> bool:
+def handle_passkey_dialog(hwnd: int, tab_count: int = 7) -> bool:
     """
-    パスキー認証選択画面でTab×5、Enterを押下してパスキーをスキップし2FA送信を開始する。
+    パスキー認証選択画面でTab×tab_count、Enterを押下してパスキーをスキップする。
+    2FAあり時: tab_count=7、2FAスキップ時: tab_count=5
     スクリーンロック中でも動作するようPostMessage経由で操作する。
     """
     try:
@@ -536,13 +537,13 @@ def handle_passkey_dialog(hwnd: int) -> bool:
         log.info(f"DOM起点クリック: client({cx}, {cy})")
         time.sleep(0.5)
 
-        # Tab×5回でボタンにフォーカスを移動
-        for i in range(5):
+        # Tab×tab_count回でボタンにフォーカスを移動
+        for i in range(tab_count):
             win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
             time.sleep(0.1)
             win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
             time.sleep(0.15)
-        log.info("Tabキー×5回完了")
+        log.info(f"Tabキー×{tab_count}回完了")
         time.sleep(0.3)
 
         # Enter（2FA送信トリガー）
@@ -680,6 +681,7 @@ def do_login() -> bool:
         code = fetch_2fa_code(service, since_dt=login_time, timeout_sec=30)
         if code is None:
             log.info("2FAコード未着（30秒）→ 2FAスキップしてパスキー選択へ進む")
+            passkey_tab_count = 5
         else:
             # 7. 2FAフォームが表示されるまで待つ
             time.sleep(3)
@@ -688,14 +690,15 @@ def do_login() -> bool:
             if not enter_2fa_code(code, dialog):
                 log.error("2FAコード入力失敗")
                 return False
+            passkey_tab_count = 7
 
         # 9. パスキー選択画面の読み込みを待つ（CEFウィンドウ内に表示される）
         log.info("パスキー選択画面読み込み待機（5秒）...")
         time.sleep(5)
 
-        # 10. Tab×5 + Enter（パスキー選択スキップ）
-        log.info("パスキー選択画面でTab×5 + Enter...")
-        if not handle_passkey_dialog(dialog.handle):
+        # 10. Tab×N + Enter（パスキー選択スキップ：2FAあり=7回、2FAスキップ=5回）
+        log.info(f"パスキー選択画面でTab×{passkey_tab_count} + Enter...")
+        if not handle_passkey_dialog(dialog.handle, tab_count=passkey_tab_count):
             return False
 
         # 11. API確認でログイン完了を検証（最大STARTUP_WAIT_SEC秒リトライ）
