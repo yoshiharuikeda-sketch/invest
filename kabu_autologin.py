@@ -16,8 +16,8 @@ kabuステーション® 自動起動・ログイン・終了スクリプト
   7. 2FAフォーム表示待機（3秒）※2FAあり時のみ
   8. OTPをWM_CHARで入力 → Enter ※2FAあり時のみ
   9. パスキー選択画面読み込み待機（5秒、CEFウィンドウ内に表示）
-  10. スクリーンショットでオレンジボタン「パスキーを作成」を検出してクリック → Tab×1 → Enter
-      （検出不可時は固定座標(580,420)にフォールバックして同様にTab+Enter）
+  10. UIA検索で「パスキーを作成」にSetFocus（クリックしない）→ Tab×1 → Enter
+      UIA失敗時はオレンジボタン検出してWM_MOUSEMOVEホバー → Tab×1 → Enter
   11. API認証確認（最大120秒リトライ）
 
 【動作フロー（shutdownモード）】
@@ -504,9 +504,9 @@ def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC)
 def handle_passkey_dialog(hwnd: int) -> bool:
     """
     パスキー選択画面で「パスキーなしで続行」を選択する。
-    オレンジ色の「パスキーを作成」ボタンをスクリーンショットで検出してクリックし、
-    Tab×1 → Enter でフォーカスを「パスキーなしで続行」に移動して決定する。
-    検出失敗時は固定クライアント座標(580, 420)をクリックしてからTab+Enterを送る。
+    1. UIA テキスト検索で「パスキーを作成」要素を探しSetFocusでフォーカス（クリックしない）
+    2. UIA失敗時はオレンジボタンをスクリーンショット検出してWM_MOUSEMOVEでホバー
+    3. フォーカス確定後 Tab×1 → Enter で「パスキーなしで続行」を決定する
     """
     try:
         # CEFウィンドウ取得
@@ -523,40 +523,48 @@ def handle_passkey_dialog(hwnd: int) -> bool:
         target = cef_hwnd[0] or hwnd
         log.info(f"パスキー選択ウィンドウ: {win32gui.GetClassName(target)} (hwnd={target})")
 
-        win_rect = win32gui.GetWindowRect(hwnd)
-        win_left, win_top, win_right, win_bottom = win_rect
+        focused = False
 
-        # オレンジ色の「パスキーを作成」ボタンをスクリーンショットから検出
-        orange_x, orange_y = _scan_orange_button(
-            y_min=win_top + 300,
-            y_max=win_bottom - 50,
-            x_min=win_left,
-            x_max=win_right,
-        )
+        # 1. UIA テキスト検索で「パスキーを作成」を探してフォーカス（クリックしない）
+        try:
+            from pywinauto import Application
+            app = Application(backend="uia").connect(handle=hwnd)
+            win = app.window(handle=hwnd)
+            btn = win.child_window(title="パスキーを作成", control_type="Button")
+            btn.set_focus()
+            log.info("UIA: 「パスキーを作成」にSetFocus完了")
+            focused = True
+        except Exception as e:
+            log.info(f"UIA SetFocus 失敗（続行）: {e}")
 
-        if orange_x is not None:
-            log.info(f"オレンジボタン検出: screen({orange_x}, {orange_y})")
-            client_pt = win32gui.ScreenToClient(target, (orange_x, orange_y))
-            cx, cy = client_pt
-        else:
-            cx, cy = 580, 420
-            log.warning(f"オレンジボタン未検出（スクリーンロック中？）→ 固定座標: client({cx}, {cy})")
+        # 2. UIA失敗時: オレンジボタンをスクリーンショット検出してWM_MOUSEMOVEでホバー
+        if not focused:
+            win_rect = win32gui.GetWindowRect(hwnd)
+            win_left, win_top, win_right, win_bottom = win_rect
+            orange_x, orange_y = _scan_orange_button(
+                y_min=win_top + 300,
+                y_max=win_bottom - 50,
+                x_min=win_left,
+                x_max=win_right,
+            )
+            if orange_x is not None:
+                client_pt = win32gui.ScreenToClient(target, (orange_x, orange_y))
+                cx, cy = client_pt
+                log.info(f"オレンジボタン検出: screen({orange_x}, {orange_y}) → client({cx}, {cy})")
+            else:
+                cx, cy = 580, 420
+                log.warning(f"オレンジボタン未検出 → 固定座標: client({cx}, {cy})")
+            # WM_MOUSEMOVEでホバー（クリックしない）
+            lparam = win32api.MAKELONG(cx, cy)
+            win32api.PostMessage(target, win32con.WM_MOUSEMOVE, 0, lparam)
+            log.info(f"WM_MOUSEMOVEホバー: client({cx}, {cy})")
+            time.sleep(0.3)
 
-        # 「パスキーを作成」ボタンをクリックしてフォーカスを設定
-        lparam = win32api.MAKELONG(cx, cy)
-        win32api.PostMessage(target, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lparam)
-        time.sleep(0.1)
-        win32api.PostMessage(target, win32con.WM_LBUTTONUP, 0, lparam)
-        log.info(f"「パスキーを作成」クリック（フォーカス設定）: client({cx}, {cy})")
-        time.sleep(0.5)
-
-        # Tab×1 で「パスキーなしで続行」にフォーカス移動
+        # 3. Tab×1 → Enter
         win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
         time.sleep(0.1)
         win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
         time.sleep(0.3)
-
-        # Enter で決定
         win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
         time.sleep(0.1)
         win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
