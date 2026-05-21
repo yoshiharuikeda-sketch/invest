@@ -718,8 +718,7 @@ def do_login() -> bool:
                     log.info("✅ API認証成功 - ログイン完了")
                     return True
                 else:
-                    log.warning(f"API認証失敗: {resp.status_code} {resp.text}")
-                    return False
+                    log.warning(f"API認証失敗: {resp.status_code} {resp.text}（リトライ継続）")
             except Exception:
                 pass  # まだAPI未起動、リトライ
 

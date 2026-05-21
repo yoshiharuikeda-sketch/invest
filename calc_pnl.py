@@ -43,6 +43,10 @@ def load_portfolio_value() -> int:
 
 PORTFOLIO_VALUE = load_portfolio_value()
 
+# kabu_order.py の発注コード変更と一致させる
+ORDER_TICKER_MAP   = {"1625.T": "200A.T", "1633.T": "1343.T", "1629.T": "8058.T"}
+SHORT_SKIP_TICKERS = {"1617.T", "1620.T", "1623.T"}
+
 # =====================================================================
 # シグナルCSV読み込み
 # =====================================================================
@@ -180,6 +184,16 @@ def process_one_day(csv_path: str) -> dict | None:
     if signal_df.empty:
         print(f"  {date.strftime('%Y-%m-%d')}: ポジションなし")
         return None
+
+    # SHORTスキップ銘柄を除外（kabu_order.pyと同じルール）
+    skip_mask = signal_df["Ticker"].isin(SHORT_SKIP_TICKERS) & (signal_df["ポジション"] < 0)
+    if skip_mask.any():
+        skipped = signal_df.loc[skip_mask, "名称"].tolist()
+        print(f"  SHORT スキップ: {skipped}")
+        signal_df = signal_df[~skip_mask].copy()
+
+    # 実発注銘柄コードに変換（表示用に元コードを保持）
+    signal_df["Ticker"] = signal_df["Ticker"].map(lambda t: ORDER_TICKER_MAP.get(t, t))
 
     tickers = signal_df["Ticker"].tolist()
     ohlc    = fetch_ohlc(tickers, date)
