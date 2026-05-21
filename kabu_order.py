@@ -93,7 +93,7 @@ JP_NAMES = {
     "1619.T": "建設・資材",     "1620.T": "素材・化学",
     "1621.T": "医薬品",         "1622.T": "自動車・輸送機",
     "1623.T": "鉄鋼・非鉄",    "1624.T": "機械",
-    "1625.T": "電機・精密",     "1626.T": "情報通信・サービス",
+    "1625.T": "電機・精寄",     "1626.T": "情報通信・サービス",
     "1627.T": "電力・ガス",     "1628.T": "運輸・物流",
     "1629.T": "商社・卸売",     "1630.T": "小売",
     "1631.T": "銀行",           "1632.T": "金融（除く銀行）",
@@ -238,7 +238,7 @@ def send_order(
         "Side":            side,
         "CashMargin":      cash_margin,
         "DelivType":       0,          # 0=指定なし（信用）, 2=預かり金（現物）
-        "FundType":        "AA",       # AA=保護預かり（信用）
+        "FundType":        "AA",       # AA=保護預かり（信用）, "  "=現物
         "AccountType":     4,          # 特定口座
         "Qty":             qty,
         "FrontOrderType":  front_order_type,
@@ -352,6 +352,10 @@ def run_orders(
     print(f"  実行時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  運用資産: {portfolio_value:,.0f}円")
     print("=" * 65)
+
+    # kabuStation再起動でトークンが無効になる場合があるため毎回新規取得
+    if os.path.exists(TOKEN_CACHE):
+        os.remove(TOKEN_CACHE)
 
     # ---- トークン取得 ----
     print("\n【1. 認証】")
