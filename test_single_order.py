@@ -1,85 +1,78 @@
 """
-sendorder 調査: MarginTradeType（信用取引区分）を追加
-1=制度信用, 2=一般信用(長期), 3=一般信用(デイトレ)
-発注成功した場合は即キャンセル
+1321（野村日経225連動型上場投信）を1口だけ信用新規買い → 即キャンセル
+sendorder と cancelorder の両APIをテスト
+ポジションは残らない
 """
 import sys
 import os
-import json
-import requests
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from kabu_order import get_token, TOKEN_CACHE, KABU_API_BASE, API_PASSWORD
-
-def try_order(token, body):
-    headers = {"X-API-KEY": token, "Content-Type": "application/json"}
-    resp = requests.post(f"{KABU_API_BASE}/sendorder", headers=headers, json=body, timeout=10)
-    return resp.status_code, resp.json()
-
-def cancel(token, order_id):
-    headers = {"X-API-KEY": token, "Content-Type": "application/json"}
-    body = {"OrderId": order_id, "Password": API_PASSWORD}
-    resp = requests.put(f"{KABU_API_BASE}/cancelorder", headers=headers, json=body, timeout=10)
-    return resp.json()
+from kabu_order import get_token, get_board, send_order, cancel_order, API_PASSWORD, TOKEN_CACHE, KABU_API_BASE
+import requests
 
 def main():
-    print("=" * 65)
-    print("  MarginTradeType 追加テスト: 1617 信用新規買い 1口 寄付き")
-    print("=" * 65)
+    print("=" * 60)
+    print("  テスト発注: 1321（日経225ETF）１口 信用新規買い → 即キャンセル")
+    print("  ※ 発注直後にキャンセルするためポジションは残りません")
+    print("=" * 60)
 
+    # トークンキャッシュ削除
     if os.path.exists(TOKEN_CACHE):
         os.remove(TOKEN_CACHE)
 
-    print("\n【認証】")
+    print("\n【1. 認証】")
     try:
         token = get_token()
     except Exception as e:
-        print(f"  ❌ {e}")
+        print(f"  ❌ 認証失敗: {e}")
         return
 
-    base = {
-        "Password":        API_PASSWORD,
-        "Symbol":          "1617",
-        "Exchange":        1,
-        "SecurityType":    1,
-        "Side":            "2",
-        "CashMargin":      2,
-        "DelivType":       0,
-        "FundType":        "  ",
-        "AccountType":     4,
-        "Qty":             1,
-        "FrontOrderType":  10,
-        "Price":           0,
-        "ExpireDay":       0,
-    }
+    print("\n【2. 板情報確認: 1321】")
+    try:
+        board = get_board(token, "1321")
+        price = board.get("CurrentPrice") or board.get("CalcPrice", 0)
+        print(f"  現在値: {price:,.0f}円 / 出来高: {board.get('TradingVolume', 'N/A')}口")
+    except Exception as e:
+        print(f"  ❌ 板情報取得失敗: {e}")
+        return
 
-    candidates = [
-        ("MarginTradeType=1 制度信用",           {**base, "MarginTradeType": 1}),
-        ("MarginTradeType=2 一般信用(長期)",      {**base, "MarginTradeType": 2}),
-        ("MarginTradeType=3 一般信用(デイトレ)",    {**base, "MarginTradeType": 3}),
-    ]
+    print("\n【3. 発注、1321 信用新規買い 1口 引成（本日大引け）")
+    result = send_order(
+        token=token,
+        symbol="1321",
+        side="2",              # 買い
+        qty=1,
+        order_type=1,          # 成行
+        price=0,
+        cash_margin=2,         # 信用新規
+        front_order_type=13,   # 引成（本日15:30大引け）
+        dry_run=False,
+    )
 
-    print()
-    for label, body in candidates:
-        print(f"--- {label} ---")
-        status, result = try_order(token, body)
-        if status == 200 and result.get("Result") == 0:
-            order_id = result.get("OrderId")
-            print(f"  ✅ 発注成功! OrderId={order_id}")
-            cr = cancel(token, order_id)
-            if cr.get("Result") == 0:
-                print(f"  ✅ 即キャンセル成功 → ポジションなし")
-            else:
-                print(f"  ⚠️  キャンセル: {cr} → kabuステーション画面から手動キャンセル")
-            print("\n=== 正解発見! ===")
-            return
+    if not result or result.get("Result") != 0:
+        print(f"  ❌ 発注失敗: {result}")
+        return
+
+    order_id = result.get("OrderId")
+    print(f"  ✅ 発注成功！ OrderId: {order_id}")
+
+    print(f"\n【4. 即キャンセル】OrderId: {order_id}")
+    headers = {"X-API-KEY": token, "Content-Type": "application/json"}
+    body = {"OrderId": order_id, "Password": API_PASSWORD}
+    try:
+        resp = requests.put(f"{KABU_API_BASE}/cancelorder", headers=headers, json=body, timeout=10)
+        resp.raise_for_status()
+        cancel_result = resp.json()
+        if cancel_result.get("Result") == 0:
+            print(f"  ✅ キャンセル成功！ ポジションは残っていません")
         else:
-            code = result.get('Code')
-            msg = result.get('Message', '')
-            print(f"  ❌ ({status}): Code={code}: {msg}")
-        print()
+            print(f"  ⚠️  キャンセル結果: {cancel_result}")
+            print(f"     kabuステーション画面から手動でキャンセルしてください")
+    except Exception as e:
+        print(f"  ❌ キャンセル失敗: {e}")
+        print(f"     kabuステーション画面から手動でキャンセルしてください")
 
-    print("=== 全パターン失敗 ===")
+    print("\n=== テスト完了 ===")
 
 if __name__ == "__main__":
     main()
