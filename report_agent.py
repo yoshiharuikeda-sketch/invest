@@ -301,14 +301,17 @@ def build_report_html(label: str, df_hist: pd.DataFrame,
 </table>"""
 
     # 日次損益
-    rows = "".join(
-        f"<tr>{_td(r['日付'])}"
-        f"{_td(f\"{float(r['合計損益(円)']):+,.0f}円\", color=_color(r['合計損益(円)']))}"
-        f"{_td(f\"{float(r['損益率(%)']):+.3f}%\", color=_color(r['損益率(%)']))}"
-        f"{_td(r['勝敗'])}"
-        f"{_td(r['ポジション数'])}</tr>"
-        for _, r in df.iterrows()
-    )
+    rows = ""
+    for _, r in df.iterrows():
+        pnl  = float(r['合計損益(円)'])
+        rate = float(r['損益率(%)'])
+        rows += (
+            f"<tr>{_td(r['日付'])}"
+            f"{_td(f'{pnl:+,.0f}円', color=_color(pnl))}"
+            f"{_td(f'{rate:+.3f}%', color=_color(rate))}"
+            f"{_td(r['勝敗'])}"
+            f"{_td(r['ポジション数'])}</tr>"
+        )
     daily_html = f"""
 <table {tbl}>
   <tr>{_th("日付")}{_th("損益(円)")}{_th("損益率(%)")}{_th("勝敗")}{_th("ポジション数")}</tr>
@@ -322,11 +325,13 @@ def build_report_html(label: str, df_hist: pd.DataFrame,
             df_detail.groupby("名称")["損益(円)"]
             .sum().sort_values().reset_index()
         )
-        s_rows = "".join(
-            f"<tr>{_td(r['名称'], align='left')}"
-            f"{_td(f\"{float(r['損益(円)']):+,.0f}円\", color=_color(r['損益(円)']))}</tr>"
-            for _, r in sector.iterrows()
-        )
+        s_rows = ""
+        for _, r in sector.iterrows():
+            pnl = float(r['損益(円)'])
+            s_rows += (
+                f"<tr>{_td(r['名称'], align='left')}"
+                f"{_td(f'{pnl:+,.0f}円', color=_color(pnl))}</tr>"
+            )
         sector_html = f"""
 <h3>銘柄別損益</h3>
 <table {tbl}>
