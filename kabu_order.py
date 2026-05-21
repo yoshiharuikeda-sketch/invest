@@ -237,8 +237,8 @@ def send_order(
         "SecurityType":    1,          # 株式・ETF
         "Side":            side,
         "CashMargin":      cash_margin,
-        "DelivType":       2,          # 預かり金
-        "FundType":        "  ",       # 信用の場合は "AA" など
+        "DelivType":       0,          # 0=指定なし（信用）, 2=預かり金（現物）
+        "FundType":        "AA",       # AA=保護預かり（信用）
         "AccountType":     4,          # 特定口座
         "Qty":             qty,
         "FrontOrderType":  front_order_type,
@@ -454,7 +454,6 @@ def connection_test():
     print("  kabuステーションAPI 接続テスト")
     print("=" * 65)
 
-    # kabuステーション起動確認
     print("\n【接続確認】")
     try:
         resp = requests.get(f"{KABU_API_BASE}/token", timeout=3)
@@ -463,18 +462,11 @@ def connection_test():
         print("  ❌ 接続失敗: kabuステーション® が起動していません")
         print("     → kabuステーション®（Windows版）を起動し、")
         print("       システム設定 > APIタブ でAPIを有効化してください")
-        print()
-        print("  ⚠️  注意: kabuステーションAPIはWindowsのみ対応です")
-        print("     Macの場合は以下の代替手段をご検討ください:")
-        print("     1. Windows PCまたは仮想環境（Parallels等）で実行")
-        print("     2. Windows VPS（クラウド上のWindows Server）で実行")
         return False
 
-    # トークン取得テスト
     print("\n【認証テスト】")
     if not API_PASSWORD:
         print("  ⚠️  APIパスワード未設定")
-        print("     export KABU_API_PASSWORD='your_password' を実行してください")
         return False
 
     try:
@@ -484,7 +476,6 @@ def connection_test():
         print(f"  ❌ 認証失敗: {e}")
         return False
 
-    # 残高照会テスト
     print("\n【残高照会テスト】")
     try:
         wallet = get_wallet(token)
@@ -495,7 +486,6 @@ def connection_test():
     except Exception as e:
         print(f"  ❌ 残高照会失敗: {e}")
 
-    # 板情報テスト（1617.T）
     print("\n【板情報テスト（1617.T 食品）】")
     try:
         board = get_board(token, "1617")
