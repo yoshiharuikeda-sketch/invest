@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from kabu_order import get_token, get_board, send_order, cancel_order, API_PASSWORD, TOKEN_CACHE, KABU_API_BASE
+from kabu_order import get_token, get_board, send_order, API_PASSWORD, TOKEN_CACHE, KABU_API_BASE
 import requests
 
 def main():
@@ -16,7 +16,6 @@ def main():
     print("  ※ 発注直後にキャンセルするためポジションは残りません")
     print("=" * 60)
 
-    # トークンキャッシュ削除
     if os.path.exists(TOKEN_CACHE):
         os.remove(TOKEN_CACHE)
 
@@ -36,7 +35,7 @@ def main():
         print(f"  ❌ 板情報取得失敗: {e}")
         return
 
-    print("\n【3. 発注、1321 信用新規買い 1口 引成（本日大引け）")
+    print("\n【3. 発注、1321 信用新規買い 1口 寄付き成行（明日寄付き）")
     result = send_order(
         token=token,
         symbol="1321",
@@ -45,7 +44,7 @@ def main():
         order_type=1,          # 成行
         price=0,
         cash_margin=2,         # 信用新規
-        front_order_type=13,   # 引成（本日15:30大引け）
+        front_order_type=10,   # 寄付き成行（明日寄付きで執行）
         dry_run=False,
     )
 
