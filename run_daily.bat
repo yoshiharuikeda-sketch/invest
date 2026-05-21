@@ -11,4 +11,4 @@ IF "%1"=="open"   python "G:\My Drive\Claude Code\Invest\kabu_order.py" --execut
 IF "%1"=="close"  python "G:\My Drive\Claude Code\Invest\kabu_order.py" --execute --close --value %PORTFOLIO_VALUE% >> "G:\My Drive\Claude Code\Invest\log_order.txt" 2>&1
 IF "%1"=="dry"     python "G:\My Drive\Claude Code\Invest\kabu_order.py" --value %PORTFOLIO_VALUE%
 IF "%1"=="monitor" python "G:\My Drive\Claude Code\Invest\monitor_agent.py"
-IF "%1"=="report"  python "G:\My Drive\Claude Code\Invest\report_agent.py" >> "G:\My Drive\Claude Code\Invest\log_report.txt" 2>&1
+IF "%1"=="report"  python "G:\My Drive\Claude Code\Invest\report_agent.py"
