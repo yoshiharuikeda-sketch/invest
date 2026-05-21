@@ -73,7 +73,7 @@ API_PASSWORD    = _load_api_password()
 
 # 発注設定
 ORDER_TYPE      = 1      # 1: 成行, 2: 指値
-FRONT_ORDER_TYPE = 10    # 10: 成行（寄付）, 13: 成行（引成）
+FRONT_ORDER_TYPE = 10    # 10: 成行（前場寄付）, 13: 引成（前場引け）, 14: 引成（後場引け=大引け）
 CASH_MARGIN     = 2      # 1: 現物, 2: 信用新規
 SIDE_BUY        = "2"   # 買い
 SIDE_SELL       = "1"   # 売り
@@ -218,7 +218,7 @@ def send_order(
     order_type     : 1=成行, 2=指値
     price          : 指値価格（成行の場合は0）
     cash_margin    : 1=現物, 2=信用新規, 3=信用返済
-    front_order_type: 10=成行寄付, 13=成行引成, 20=指値
+    front_order_type: 10=成行寄付(前場), 13=引成(前場引け), 14=引成(後場引け=大引け)
     dry_run        : True=発注せず内容確認のみ
     """
     direction = "買い" if side == SIDE_BUY else "売り（空売り）"
@@ -387,7 +387,7 @@ def run_orders(
     print(f"  LONG : {len(longs)}銘柄 / SHORT: {len(shorts)}銘柄")
 
     # ---- 発注内容の確認 ----
-    front_type = 10 if open_order else 13   # 10=成行寄付, 13=成行引成
+    front_type = 10 if open_order else 14   # 10=前場寄付き, 14=後場引け(大引け)
     order_label = "寄付き成行" if open_order else "引成成行"
     print(f"\n【4. 発注内容（{order_label}）】")
 
