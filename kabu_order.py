@@ -72,21 +72,28 @@ def _load_api_password() -> str:
 API_PASSWORD    = _load_api_password()
 
 # 発注設定
-ORDER_TYPE      = 1      # 1: 成行, 2: 指値
-FRONT_ORDER_TYPE = 10    # 10: 成行（前場寄付）, 13: 引成（前場引け）, 14: 引成（後場引け=大引け）
-CASH_MARGIN     = 2      # 1: 現物, 2: 信用新規
-SIDE_BUY        = "2"   # 買い
-SIDE_SELL       = "1"   # 売り
+ORDER_TYPE        = 1    # 1: 成行, 2: 指値
+FRONT_ORDER_TYPE  = 10   # 10: 成行（寄付）, 13: 成行（引成）
+CASH_MARGIN       = 2    # 1: 現物, 2: 信用新規, 3: 信用返済
+MARGIN_TRADE_TYPE = 3    # 1: 制度信用, 2: 一般信用（長期）, 3: 一般信用（デイトレ）
+SIDE_BUY          = "2"  # 買い
+SIDE_SELL         = "1"  # 売り
 
 # TOPIX-17 ETF 銘柄コード（証券コード）
 JP_TICKER_TO_CODE = {
     "1617.T": "1617", "1618.T": "1618", "1619.T": "1619",
     "1620.T": "1620", "1621.T": "1621", "1622.T": "1622",
-    "1623.T": "1623", "1624.T": "1624", "1625.T": "1625",
+    "1623.T": "1623", "1624.T": "1624",
+    "1625.T": "200A",   # 電機・精密 → 日経半導体株指数ETF（デイトレ売建対応）
     "1626.T": "1626", "1627.T": "1627", "1628.T": "1628",
-    "1629.T": "1629", "1630.T": "1630", "1631.T": "1631",
-    "1632.T": "1632", "1633.T": "1633",
+    "1629.T": "8058",   # 商社・卸売 → 三菱商事（デイトレ売建対応）
+    "1630.T": "1630", "1631.T": "1631",
+    "1632.T": "1632",
+    "1633.T": "1343",   # 不動産 → NEXT FUNDS 東証REIT指数ETF（デイトレ売建対応）
 }
+
+# 一般信用デイトレ売建非対応のためSHORTをスキップする銘柄
+SHORT_SKIP_TICKERS = {"1617.T", "1620.T", "1623.T"}
 
 JP_NAMES = {
     "1617.T": "食品",           "1618.T": "エネルギー資源",
@@ -98,6 +105,10 @@ JP_NAMES = {
     "1629.T": "商社・卸売",     "1630.T": "小売",
     "1631.T": "銀行",           "1632.T": "金融（除く銀行）",
     "1633.T": "不動産",
+    # 代替銘柄の表示名（発注コードで参照される）
+    "200A.T": "電機・精密代替（日経半導体）",
+    "1343.T": "不動産代替（東証REIT）",
+    "8058.T": "商社・卸売代替（三菱商事）",
 }
 
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -207,19 +218,23 @@ def send_order(
     order_type: int = ORDER_TYPE,
     price: float = 0,
     cash_margin: int = CASH_MARGIN,
+    margin_trade_type: int = MARGIN_TRADE_TYPE,
     front_order_type: int = FRONT_ORDER_TYPE,
+    close_position_order: Optional[int] = None,
     dry_run: bool = True,
 ) -> Optional[dict]:
     """
     注文発注
-    symbol         : 証券コード（例: "1617"）
-    side           : "2"=買い, "1"=売り
-    qty            : 株数（口数）
-    order_type     : 1=成行, 2=指値
-    price          : 指値価格（成行の場合は0）
-    cash_margin    : 1=現物, 2=信用新規, 3=信用返済
-    front_order_type: 10=成行寄付(前場), 13=引成(前場引け), 14=引成(後場引け=大引け)
-    dry_run        : True=発注せず内容確認のみ
+    symbol              : 証券コード（例: "1617"）
+    side                : "2"=買い, "1"=売り
+    qty                 : 株数（口数）
+    order_type          : 1=成行, 2=指値
+    price               : 指値価格（成行の場合は0）
+    cash_margin         : 1=現物, 2=信用新規, 3=信用返済
+    margin_trade_type   : 1=制度信用, 2=一般信用（長期）, 3=一般信用（デイトレ）
+    front_order_type    : 10=成行寄付, 13=成行引成, 20=指値
+    close_position_order: 返済順序（返済時のみ: 0〜7）
+    dry_run             : True=発注せず内容確認のみ
     """
     direction = "買い" if side == SIDE_BUY else "売り（空売り）"
     print(f"    [{symbol}] {JP_NAMES.get(symbol+'.T', symbol)} "
@@ -230,22 +245,24 @@ def send_order(
         return {"OrderId": "DRY_RUN", "Result": 0}
 
     headers = {"X-API-KEY": token, "Content-Type": "application/json"}
+    deliv_type = 0 if cash_margin == 2 else 2  # 信用新規=0、信用返済=2
     body = {
-        "Password":        API_PASSWORD,
-        "Symbol":          symbol,
-        "Exchange":        1,          # 東証
-        "SecurityType":    1,          # 株式・ETF
-        "Side":            side,
-        "CashMargin":      cash_margin,
-        "DelivType":       0,          # 0=指定なし（信用）
-        "FundType":        "  ",       # 指定なし
-        "AccountType":     4,          # 特定口座
-        "MarginTradeType": 1,          # 1=制度信用, 2=一般信用(長期), 3=一般信用(デイトレ)
-        "Qty":             qty,
-        "FrontOrderType":  front_order_type,
-        "Price":           price,
-        "ExpireDay":       0,          # 0=当日
+        "Password":          API_PASSWORD,
+        "Symbol":            symbol,
+        "Exchange":          27,         # 東証+（通常時の新規発注は東証1不可）
+        "SecurityType":      1,          # 株式・ETF
+        "Side":              side,
+        "CashMargin":        cash_margin,
+        "MarginTradeType":   margin_trade_type,
+        "DelivType":         deliv_type,
+        "AccountType":       4,          # 特定口座
+        "Qty":               qty,
+        "FrontOrderType":    front_order_type,
+        "Price":             price,
+        "ExpireDay":         0,
     }
+    if close_position_order is not None:
+        body["ClosePositionOrder"] = close_position_order
 
     resp = requests.post(
         f"{KABU_API_BASE}/sendorder",
@@ -354,10 +371,6 @@ def run_orders(
     print(f"  運用資産: {portfolio_value:,.0f}円")
     print("=" * 65)
 
-    # kabuStation再起動でトークンが無効になる場合があるため毎回新規取得
-    if os.path.exists(TOKEN_CACHE):
-        os.remove(TOKEN_CACHE)
-
     # ---- トークン取得 ----
     print("\n【1. 認証】")
     try:
@@ -387,14 +400,33 @@ def run_orders(
     print(f"  LONG : {len(longs)}銘柄 / SHORT: {len(shorts)}銘柄")
 
     # ---- 発注内容の確認 ----
-    front_type = 10 if open_order else 14   # 10=前場寄付き, 14=後場引け(大引け)
+    front_type = 10 if open_order else 13   # 10=成行寄付, 13=成行引成
     order_label = "寄付き成行" if open_order else "引成成行"
     print(f"\n【4. 発注内容（{order_label}）】")
 
+    if open_order:
+        long_label   = "LONG（信用新規買い）"
+        long_side    = SIDE_BUY
+        long_cm      = 2
+        long_cpord   = None
+        short_label  = "SHORT（信用新規売り）"
+        short_side   = SIDE_SELL
+        short_cm     = 2
+        short_cpord  = None
+    else:
+        long_label   = "LONG返済（信用返済売り）"
+        long_side    = SIDE_SELL   # 買建玉の返済 = 売り
+        long_cm      = 3
+        long_cpord   = 0
+        short_label  = "SHORT返済（信用返済買い）"
+        short_side   = SIDE_BUY   # 売建玉の返済 = 買い
+        short_cm     = 3
+        short_cpord  = 0
+
     order_results = []
 
-    # ロング（買い）
-    print("\n  ▼ LONG（信用新規買い）")
+    # ロング
+    print(f"\n  ▼ {long_label}")
     for _, row in longs.iterrows():
         ticker = row["Ticker"]
         code   = JP_TICKER_TO_CODE.get(ticker, "")
@@ -404,20 +436,24 @@ def run_orders(
         if qty == 0:
             continue
         result = send_order(
-            token, code, SIDE_BUY, qty,
-            cash_margin=2,
+            token, code, long_side, qty,
+            cash_margin=long_cm,
             front_order_type=front_type,
+            close_position_order=long_cpord,
             dry_run=dry_run
         )
         order_results.append({
-            "Ticker": ticker, "Side": "BUY", "Qty": qty,
-            "Result": result
+            "Ticker": ticker, "Side": "BUY" if long_side == SIDE_BUY else "SELL",
+            "Qty": qty, "Result": result
         })
 
-    # ショート（売り）
-    print("\n  ▼ SHORT（信用新規売り）")
+    # ショート
+    print(f"\n  ▼ {short_label}")
     for _, row in shorts.iterrows():
         ticker = row["Ticker"]
+        if ticker in SHORT_SKIP_TICKERS:
+            print(f"    [{ticker}] {JP_NAMES.get(ticker, ticker)} SHORT スキップ（デイトレ売建非対応）")
+            continue
         code   = JP_TICKER_TO_CODE.get(ticker, "")
         if not code:
             continue
@@ -425,14 +461,15 @@ def run_orders(
         if qty == 0:
             continue
         result = send_order(
-            token, code, SIDE_SELL, qty,
-            cash_margin=2,
+            token, code, short_side, qty,
+            cash_margin=short_cm,
             front_order_type=front_type,
+            close_position_order=short_cpord,
             dry_run=dry_run
         )
         order_results.append({
-            "Ticker": ticker, "Side": "SELL", "Qty": qty,
-            "Result": result
+            "Ticker": ticker, "Side": "BUY" if short_side == SIDE_BUY else "SELL",
+            "Qty": qty, "Result": result
         })
 
     # ---- サマリー ----
@@ -459,6 +496,7 @@ def connection_test():
     print("  kabuステーションAPI 接続テスト")
     print("=" * 65)
 
+    # kabuステーション起動確認
     print("\n【接続確認】")
     try:
         resp = requests.get(f"{KABU_API_BASE}/token", timeout=3)
@@ -467,11 +505,18 @@ def connection_test():
         print("  ❌ 接続失敗: kabuステーション® が起動していません")
         print("     → kabuステーション®（Windows版）を起動し、")
         print("       システム設定 > APIタブ でAPIを有効化してください")
+        print()
+        print("  ⚠️  注意: kabuステーションAPIはWindowsのみ対応です")
+        print("     Macの場合は以下の代替手段をご検討ください:")
+        print("     1. Windows PCまたは仮想環境（Parallels等）で実行")
+        print("     2. Windows VPS（クラウド上のWindows Server）で実行")
         return False
 
+    # トークン取得テスト
     print("\n【認証テスト】")
     if not API_PASSWORD:
         print("  ⚠️  APIパスワード未設定")
+        print("     export KABU_API_PASSWORD='your_password' を実行してください")
         return False
 
     try:
@@ -481,6 +526,7 @@ def connection_test():
         print(f"  ❌ 認証失敗: {e}")
         return False
 
+    # 残高照会テスト
     print("\n【残高照会テスト】")
     try:
         wallet = get_wallet(token)
@@ -491,6 +537,7 @@ def connection_test():
     except Exception as e:
         print(f"  ❌ 残高照会失敗: {e}")
 
+    # 板情報テスト（1617.T）
     print("\n【板情報テスト（1617.T 食品）】")
     try:
         board = get_board(token, "1617")

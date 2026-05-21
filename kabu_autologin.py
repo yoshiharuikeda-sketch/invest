@@ -7,18 +7,15 @@ kabuステーション® 自動起動・ログイン・終了スクリプト
   python kabu_autologin.py --mode shutdown # kabuステーション終了
 
 【動作フロー（loginモード）】
-  1. Gmail API 初期化
-  2. ログイン済み確認（APIトークン取得成功ならスキップ）
-  3. kabuステーション未起動なら起動
-  4. ログインダイアログ待機（最大90秒）
-  5. 口座番号をWM_CHARで入力 → Enter×2（2FAメール送信）
-  6. GmailからOTPコード取得（最大30秒）、未着の場合はスキップ
-  7. 2FAフォーム表示待機（3秒）※2FAあり時のみ
-  8. OTPをWM_CHARで入力 → Enter ※2FAあり時のみ
-  9. パスキー選択画面読み込み待機（5秒、CEFウィンドウ内に表示）
-  10. UIA検索で「パスキーを作成」にSetFocus（クリックしない）→ Tab×1 → Enter
-      UIA失敗時はオレンジボタン検出してWM_MOUSEMOVEホバー → Tab×1 → Enter
-  11. API認証確認（最大120秒リトライ）
+  1. kabu APIが既に使えるならスキップ（ログイン済み）
+  2. kabuステーションが未起動なら起動
+  3. ログインダイアログを待つ
+  4. 口座番号フィールドでEnter×2（ログイン開始）
+  5. パスキー認証選択ウィンドウを待つ
+  6. Tab×9 + Enter（2FA送信トリガー）
+  7. GmailからOTPを取得
+  8. OTPを入力して「続ける」ボタンを押す
+  9. API確認でログイン完了を検証
 
 【動作フロー（shutdownモード）】
   1. kabuステーションのメインウィンドウを探す
@@ -127,6 +124,7 @@ def shutdown_kabustation() -> bool:
         log.info("kabuステーションは既に終了しています")
         return True
 
+    # メインウィンドウ（ログインダイアログではないウィンドウ）を探す
     main_hwnd = None
 
     def _enum(hwnd, _):
@@ -143,11 +141,13 @@ def shutdown_kabustation() -> bool:
         log.info(f"メインウィンドウへ WM_CLOSE 送信: hwnd={main_hwnd}")
         win32gui.PostMessage(main_hwnd, win32con.WM_CLOSE, 0, 0)
     else:
+        # ログイン画面のみの場合はそちらを閉じる
         login_hwnd = win32gui.FindWindow(None, "ログイン")
         if login_hwnd:
             log.info(f"ログインウィンドウへ WM_CLOSE 送信: hwnd={login_hwnd}")
             win32gui.PostMessage(login_hwnd, win32con.WM_CLOSE, 0, 0)
 
+    # 終了を待つ
     deadline = time.time() + SHUTDOWN_WAIT_SEC
     while time.time() < deadline:
         time.sleep(2)
@@ -155,6 +155,7 @@ def shutdown_kabustation() -> bool:
             log.info("kabuステーション正常終了")
             return True
 
+    # 強制終了
     log.warning(f"{SHUTDOWN_WAIT_SEC}秒後も終了しないため強制終了します")
     subprocess.run(["taskkill", "/F", "/IM", PROCESS_NAME], capture_output=True)
     time.sleep(3)
@@ -295,7 +296,7 @@ def _extract_body(payload: dict) -> str:
 def _build_send_input():
     """SendInput API を使った OS レベルのマウスクリック関数を返す"""
     import ctypes, ctypes.wintypes
-    INPUT_MOUSE          = 0
+    INPUT_MOUSE      = 0
     MOUSEEVENTF_MOVE     = 0x0001
     MOUSEEVENTF_LEFTDOWN = 0x0002
     MOUSEEVENTF_LEFTUP   = 0x0004
@@ -334,10 +335,12 @@ def _build_send_input():
 def _scan_orange_button(y_min: int, y_max: int, x_min: int = 1000, x_max: int = 1450):
     """
     画面上のオレンジ色ボタンをスクリーンショット+numpyで高速検出して中心座標を返す。
+    pyautogui.pixel() のループ（数十秒）の代わりに1回の screenshot で完結する。
     """
     import numpy as np
     from PIL import ImageGrab
 
+    # 対象領域だけキャプチャ（高速）
     region = (x_min, y_min, x_max, y_max)
     img = ImageGrab.grab(bbox=region)
     arr = np.array(img)  # shape: (height, width, 3) RGB
@@ -349,6 +352,7 @@ def _scan_orange_button(y_min: int, y_max: int, x_min: int = 1000, x_max: int = 
     if len(xs_rel) == 0:
         return None, None
 
+    # 絶対座標に変換
     xs_abs = xs_rel + x_min
     ys_abs = ys_rel + y_min
     return int((xs_abs.min() + xs_abs.max()) // 2), int((ys_abs.min() + ys_abs.max()) // 2)
@@ -441,6 +445,7 @@ def submit_account_number() -> bool:
         target = cef_hwnd[0] or hwnd
         log.info(f"口座番号入力: {win32gui.GetClassName(target)} (hwnd={target})")
 
+        # WM_CHAR で1文字ずつ入力（フォーカスは起動時から口座番号フィールドにある）
         for ch in account_number:
             win32api.PostMessage(target, win32con.WM_CHAR, ord(ch), 0)
             time.sleep(0.1)
@@ -495,10 +500,8 @@ def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC)
 
 def handle_passkey_dialog(hwnd: int) -> bool:
     """
-    パスキー選択画面で「パスキーなしで続行」を選択する。
-    1. UIA テキスト検索で「パスキーを作成」要素を探しSetFocusでフォーカス（クリックしない）
-    2. UIA失敗時はオレンジボタンをスクリーンショット検出してWM_MOUSEMOVEでホバー
-    3. フォーカス確定後 Tab×1 → Enter で「パスキーなしで続行」を決定する
+    パスキー認証選択画面でTab×9、Enterを押下してパスキーをスキップし2FA送信を開始する。
+    スクリーンロック中でも動作するようPostMessage経由で操作する。
     """
     try:
         cef_hwnd = [None]
@@ -511,58 +514,44 @@ def handle_passkey_dialog(hwnd: int) -> bool:
             win32gui.EnumChildWindows(hwnd, _find_cef, None)
         except Exception:
             pass
+
         target = cef_hwnd[0] or hwnd
-        log.info(f"パスキー選択ウィンドウ: {win32gui.GetClassName(target)} (hwnd={target})")
+        log.info(f"パスキー選択ウィンドウ操作: {win32gui.GetClassName(target)} (hwnd={target})")
 
-        focused = False
-
-        # 1. UIA テキスト検索で「パスキーを作成」を探してフォーカス（クリックしない）
-        try:
-            from pywinauto import Application
-            app = Application(backend="uia").connect(handle=hwnd)
-            win = app.window(handle=hwnd)
-            btn = win.child_window(title="パスキーを作成", control_type="Button")
-            btn.set_focus()
-            log.info("UIA: 「パスキーを作成」にSetFocus完了")
-            focused = True
-        except Exception as e:
-            log.info(f"UIA SetFocus 失敗（続行）: {e}")
-
-        # 2. UIA失敗時: オレンジボタンをスクリーンショット検出してWM_MOUSEMOVEでホバー
-        if not focused:
-            win_rect = win32gui.GetWindowRect(hwnd)
-            win_left, win_top, win_right, win_bottom = win_rect
-            orange_x, orange_y = _scan_orange_button(
-                y_min=win_top + 300,
-                y_max=win_bottom - 50,
-                x_min=win_left,
-                x_max=win_right,
-            )
-            if orange_x is not None:
-                client_pt = win32gui.ScreenToClient(target, (orange_x, orange_y))
-                cx, cy = client_pt
-                log.info(f"オレンジボタン検出: screen({orange_x}, {orange_y}) → client({cx}, {cy})")
-            else:
-                cx, cy = 580, 420
-                log.warning(f"オレンジボタン未検出 → 固定座標: client({cx}, {cy})")
-            lparam = win32api.MAKELONG(cx, cy)
-            win32api.PostMessage(target, win32con.WM_MOUSEMOVE, 0, lparam)
-            log.info(f"WM_MOUSEMOVEホバー: client({cx}, {cy})")
-            time.sleep(0.3)
-
-        # 3. Tab×1 → Enter
-        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
-        time.sleep(0.1)
-        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
+        win32api.PostMessage(target, win32con.WM_ACTIVATE, win32con.WA_ACTIVE, 0)
+        win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
         time.sleep(0.3)
+
+        # DOM起点クリックでフォーカスの起点を作る
+        target_rect = win32gui.GetWindowRect(target)
+        tw = target_rect[2] - target_rect[0]
+        th = target_rect[3] - target_rect[1]
+        cx, cy = int(tw * 0.50), int(th * 0.50)
+        c_lparam = win32api.MAKELONG(cx, cy)
+        win32api.PostMessage(target, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, c_lparam)
+        time.sleep(0.1)
+        win32api.PostMessage(target, win32con.WM_LBUTTONUP, 0, c_lparam)
+        log.info(f"DOM起点クリック: client({cx}, {cy})")
+        time.sleep(0.5)
+
+        # Tab×8回でボタンにフォーカスを移動
+        for i in range(8):
+            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
+            time.sleep(0.1)
+            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
+            time.sleep(0.15)
+        log.info("Tabキー×8回完了")
+        time.sleep(0.3)
+
+        # Enter（2FA送信トリガー）
         win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
         time.sleep(0.1)
         win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
-        log.info("「パスキーを作成」フォーカス → Tab×1 → Enter 完了")
+        log.info("Enterキー押下（パスキー選択完了 → 2FA送信）")
         return True
 
     except Exception as e:
-        log.error(f"パスキー選択画面操作失敗: {e}")
+        log.error(f"パスキー選択ウィンドウ操作失敗: {e}")
         return False
 
 
@@ -570,6 +559,9 @@ def enter_2fa_code(code: str, dialog) -> bool:
     """
     2FAコードをCEFのOTP入力フィールドに入力して送信する。
     スクリーンロック中でも動作するようPostMessage経由で操作する。
+
+    Chrome_RenderWidgetHostHWND に WM_CHAR を直接送信することで
+    フォーカス不要でCEFへのキー入力が可能。
     """
     try:
         hwnd = win32gui.FindWindow(None, "ログイン")
@@ -577,6 +569,7 @@ def enter_2fa_code(code: str, dialog) -> bool:
             log.error("ログインウィンドウが見つかりません")
             return False
 
+        # Chrome_RenderWidgetHostHWND（CEF描画ウィンドウ）を探す
         cef_hwnd = [None]
         def _find_cef(child_hwnd, _):
             if win32gui.GetClassName(child_hwnd) == "Chrome_RenderWidgetHostHWND":
@@ -591,12 +584,14 @@ def enter_2fa_code(code: str, dialog) -> bool:
         target = cef_hwnd[0] or hwnd
         log.info(f"2FA入力対象: {win32gui.GetClassName(target)} (hwnd={target})")
 
+        # 6桁コードをWM_CHARで1文字ずつ入力（カーソルは既にOTPフィールドにある）
         for char in code:
             win32api.PostMessage(target, win32con.WM_CHAR, ord(char), 0)
             time.sleep(0.05)
         log.info(f"コード入力（WM_CHAR）: {code}")
         time.sleep(0.3)
 
+        # Enterキーで送信
         win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
         time.sleep(0.1)
         win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
@@ -612,9 +607,10 @@ def enter_2fa_code(code: str, dialog) -> bool:
 # メイン処理
 # =====================================================================
 
-_ES_CONTINUOUS       = 0x80000000
-_ES_SYSTEM_REQUIRED  = 0x00000001
-_ES_DISPLAY_REQUIRED = 0x00000002
+# SetThreadExecutionState フラグ（スリープ抑制）
+_ES_CONTINUOUS        = 0x80000000
+_ES_SYSTEM_REQUIRED   = 0x00000001
+_ES_DISPLAY_REQUIRED  = 0x00000002
 
 
 def _prevent_sleep():
@@ -637,6 +633,7 @@ def do_login() -> bool:
     log.info("kabuステーション 自動ログイン開始")
     log.info("=" * 60)
 
+    # スリープ抑制を有効化（タスク実行中にPCが再スリープするのを防ぐ）
     _prevent_sleep()
 
     try:
@@ -658,43 +655,49 @@ def do_login() -> bool:
             log.info("kabuステーション未起動 → 起動します")
             if not launch_kabustation():
                 return False
+            # 起動直後は少し待つ
             time.sleep(10)
 
         # 4. ログインダイアログを待つ
         dialog = find_login_dialog(timeout_sec=LOGIN_WAIT_SEC)
         if dialog is None:
+            # ログインダイアログが出なかった = 既にログイン済みの可能性
             if is_api_ready():
                 log.info("ログインダイアログなし → APIは正常（ログイン済み）")
                 return True
             log.error("ログインダイアログが見つかりません")
             return False
 
-        # 5. 口座番号入力 → Enter×2
+        # 5. 口座番号フィールドでEnter×2（ログイン開始 → 2FAメール送信）
         login_time = datetime.now(timezone.utc)
         log.info("口座番号フィールドでEnter×2...")
         if not submit_account_number():
             return False
 
-        # 6. 2FAコード取得（最大30秒）
-        code = fetch_2fa_code(service, since_dt=login_time, timeout_sec=30)
+        # 6. 2FAコードをGmailから取得
+        code = fetch_2fa_code(service, since_dt=login_time)
         if code is None:
-            log.info("2FAコード未着（30秒）→ 2FAスキップしてパスキー選択へ進む")
-        else:
-            time.sleep(3)
-            if not enter_2fa_code(code, dialog):
-                log.error("2FAコード入力失敗")
-                return False
+            log.error("2FAコード取得失敗 → 自動ログイン中断")
+            return False
 
-        # 7. パスキー選択画面待機
+        # 7. 2FAフォームが表示されるまで待つ
+        time.sleep(3)
+
+        # 8. コードを入力して「続ける」ボタンを押す
+        if not enter_2fa_code(code, dialog):
+            log.error("2FAコード入力失敗")
+            return False
+
+        # 9. パスキー選択画面の読み込みを待つ（CEFウィンドウ内に表示される）
         log.info("パスキー選択画面読み込み待機（5秒）...")
         time.sleep(5)
 
-        # 8. 「パスキーなしで続行」選択
-        log.info("パスキー選択画面で「パスキーなしで続行」クリック...")
+        # 10. Tab×8 + Enter（パスキー選択スキップ）
+        log.info("パスキー選択画面でTab×8 + Enter...")
         if not handle_passkey_dialog(dialog.handle):
             return False
 
-        # 9. API認証確認
+        # 11. API確認でログイン完了を検証（最大STARTUP_WAIT_SEC秒リトライ）
         import requests
         password = _read_api_password()
         if not password:
@@ -715,15 +718,15 @@ def do_login() -> bool:
                     log.info("✅ API認証成功 - ログイン完了")
                     return True
                 else:
-                    log.warning(f"API認証失敗: {resp.status_code} {resp.text}")
-                    return False
+                    log.warning(f"API認証失敗: {resp.status_code} {resp.text}（リトライ継続）")
             except Exception:
-                pass
+                pass  # まだAPI未起動、リトライ
 
         log.error(f"APIサーバーが{STARTUP_WAIT_SEC}秒以内に起動しませんでした")
         return False
 
     finally:
+        # 成功・失敗どちらの場合もスリープ抑制を解除
         _allow_sleep()
 
 
