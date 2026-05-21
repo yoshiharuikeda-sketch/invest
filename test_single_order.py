@@ -1,5 +1,8 @@
 """
-sendorder 4001005エラーの切り分け: 現物 vs 信用
+sendorder 調査:
+- 現物 FundType=AA で通るか
+- 本番銘柄1617で信用新規が通るか
+発注成功した場合は即キャンセルする
 """
 import sys
 import os
@@ -9,22 +12,21 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kabu_order import get_token, TOKEN_CACHE, KABU_API_BASE, API_PASSWORD
 
 CANDIDATES = [
-    # 信用新規（修正済みパラメータ）
-    {"label": "信用新規 (CashMargin=2, DelivType=0, FundType='  ')",
-     "CashMargin": 2, "DelivType": 0, "FundType": "  ", "AccountType": 4},
-    # 現物（元のパラメータでテスト）
-    {"label": "現物 (CashMargin=1, DelivType=2, FundType='  ')",
-     "CashMargin": 1, "DelivType": 2, "FundType": "  ", "AccountType": 4},
-    # 現物（DelivType=0）
-    {"label": "現物 (CashMargin=1, DelivType=0, FundType='  ')",
-     "CashMargin": 1, "DelivType": 0, "FundType": "  ", "AccountType": 4},
+    # 「預り区分が未設定」を修正: 現物 + FundType=AA
+    {"label": "現物 1321 FundType=AA",
+     "Symbol": "1321", "CashMargin": 1, "DelivType": 2, "FundType": "AA", "AccountType": 4},
+    # 本番銘柄で信用新規を試行（1617=食品）
+    {"label": "信用新規 1617 DelivType=0 FundType='  '",
+     "Symbol": "1617", "CashMargin": 2, "DelivType": 0, "FundType": "  ", "AccountType": 4},
+    {"label": "信用新規 1617 DelivType=0 FundType=AA",
+     "Symbol": "1617", "CashMargin": 2, "DelivType": 0, "FundType": "AA", "AccountType": 4},
 ]
 
 def try_order(token, c):
     headers = {"X-API-KEY": token, "Content-Type": "application/json"}
     body = {
         "Password":       API_PASSWORD,
-        "Symbol":         "1321",
+        "Symbol":         c["Symbol"],
         "Exchange":       1,
         "SecurityType":   1,
         "Side":           "2",
@@ -48,7 +50,7 @@ def cancel(token, order_id):
 
 def main():
     print("=" * 65)
-    print("  sendorder 切り分けテスト: 1321 1口 寄付き成行")
+    print("  sendorder 調査: 現物/信用 × 複数銘柄")
     print("=" * 65)
 
     if os.path.exists(TOKEN_CACHE):
@@ -72,22 +74,20 @@ def main():
             if cr.get("Result") == 0:
                 print(f"  ✅ 即キャンセル成功 → ポジションなし")
             else:
-                print(f"  ⚠️  キャンセル: {cr} → kabuステーション画面から手動キャンセル")
-            print("\n=== 完了 ===")
-            return
+                print(f"  ⚠️  キャンセル: {cr}")
+                print(f"     kabuステーション画面から手動キャンセルしてください")
         else:
             code = result.get('Code')
             msg = result.get('Message', '')
-            print(f"  ❌ ({status}): Code={code}")
-            if code != 4001005:
-                print(f"  ⚠️  エラーコードが変わった: {msg}")
+            marker = "⚠️  エラーコード変化!" if code != 4001005 else ""
+            print(f"  ❌ ({status}): Code={code} {marker}")
+            if msg:
+                print(f"       {msg}")
         print()
 
-    print("=== 全パターン失敗 ===")
-    print()
-    print("次のコマンドでkabuSログを確認してください:")
-    print(r"  dir $env:APPDATA\kabuStation")
-    print(r"  Get-ChildItem $env:APPDATA\kabuStation -Recurse -Filter '*.log' | sort LastWriteTime -Desc | select -First 5")
+    print("─" * 65)
+    print("kabuSログの確認:")
+    print(r"  Get-ChildItem $env:APPDATA\kabuStation -Recurse -Filter '*.log' | sort LastWriteTime -Desc | select -First 3 | % { Write-Host $_.FullName; Get-Content $_.FullName -Tail 30 }")
 
 if __name__ == "__main__":
     main()
