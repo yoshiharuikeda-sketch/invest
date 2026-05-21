@@ -36,7 +36,7 @@ def main():
         print(f"  ❌ 板情報取得失敗: {e}")
         return
 
-    print("\n【3. 発注、1321 信用新規買い 1口 引成（本日大引け）")
+    print("\n【3. 発注、1321 信用新規買い 1口 引成（後場引け=大引け）")
     result = send_order(
         token=token,
         symbol="1321",
@@ -45,7 +45,7 @@ def main():
         order_type=1,          # 成行
         price=0,
         cash_margin=2,         # 信用新規
-        front_order_type=13,   # 引成（本日15:30大引け）
+        front_order_type=14,   # 14=引成（後場引け=大引け）, 13=引成（前場引け）
         dry_run=False,
     )
 
