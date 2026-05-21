@@ -75,7 +75,7 @@ API_PASSWORD    = _load_api_password()
 ORDER_TYPE        = 1    # 1: 成行, 2: 指値
 FRONT_ORDER_TYPE  = 10   # 10: 成行（寄付）, 13: 成行（引成）
 CASH_MARGIN       = 2    # 1: 現物, 2: 信用新規, 3: 信用返済
-MARGIN_TRADE_TYPE = 1    # 1: 制度信用, 2: 一般信用（長期）, 3: 一般信用（デイトレ）
+MARGIN_TRADE_TYPE = 3    # 1: 制度信用, 2: 一般信用（長期）, 3: 一般信用（デイトレ）
 SIDE_BUY          = "2"  # 買い
 SIDE_SELL         = "1"  # 売り
 
@@ -83,11 +83,16 @@ SIDE_SELL         = "1"  # 売り
 JP_TICKER_TO_CODE = {
     "1617.T": "1617", "1618.T": "1618", "1619.T": "1619",
     "1620.T": "1620", "1621.T": "1621", "1622.T": "1622",
-    "1623.T": "1623", "1624.T": "1624", "1625.T": "1625",
+    "1623.T": "1623", "1624.T": "1624",
+    "1625.T": "200A",   # 電機・精密 → 日経半導体株指数ETF（デイトレ売建対応）
     "1626.T": "1626", "1627.T": "1627", "1628.T": "1628",
     "1629.T": "1629", "1630.T": "1630", "1631.T": "1631",
-    "1632.T": "1632", "1633.T": "1633",
+    "1632.T": "1632",
+    "1633.T": "1343",   # 不動産 → NEXT FUNDS 東証REIT指数ETF（デイトレ売建対応）
 }
+
+# 一般信用デイトレ売建非対応のためSHORTをスキップする銘柄
+SHORT_SKIP_TICKERS = {"1617.T", "1620.T", "1623.T", "1629.T"}
 
 JP_NAMES = {
     "1617.T": "食品",           "1618.T": "エネルギー資源",
@@ -99,6 +104,9 @@ JP_NAMES = {
     "1629.T": "商社・卸売",     "1630.T": "小売",
     "1631.T": "銀行",           "1632.T": "金融（除く銀行）",
     "1633.T": "不動産",
+    # 代替銘柄の表示名（発注コードで参照される）
+    "200A.T": "電機・精密代替（日経半導体）",
+    "1343.T": "不動産代替（東証REIT）",
 }
 
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -441,6 +449,9 @@ def run_orders(
     print(f"\n  ▼ {short_label}")
     for _, row in shorts.iterrows():
         ticker = row["Ticker"]
+        if ticker in SHORT_SKIP_TICKERS:
+            print(f"    [{ticker}] {JP_NAMES.get(ticker, ticker)} SHORT スキップ（デイトレ売建非対応）")
+            continue
         code   = JP_TICKER_TO_CODE.get(ticker, "")
         if not code:
             continue
