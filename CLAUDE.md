@@ -16,34 +16,48 @@
 ```
 G:\My Drive\Claude Code\Invest\
 ├── CLAUDE.md              # このファイル
-├── .env_windows           # 環境変数 (KABU_API_PASSWORD, PORTFOLIO_VALUE)
+├── .env_windows           # 環境変数 (KABU_API_PASSWORD, PORTFOLIO_VALUE, KABU_ACCOUNT_NUMBER)
 ├── config.py              # パス設定（Mac/Windows両対応）
 │
 ├── daily_signal.py        # シグナル計算（米国前日 → 日本当日）
 ├── kabu_order.py          # 発注モジュール（DRY RUN / 本番）
 ├── kabu_autologin.py      # kabuStation自動ログイン（GUI自動化）
 ├── monitor_agent.py       # ログ監視 → Gmail通知
+├── report_agent.py        # 損益レポート生成 → Gmail通知
+├── calc_pnl.py            # 損益計算（CSVに出力）
+├── trim_logs.py           # ログファイル古い行の削除
 │
-├── run_daily.bat          # 中央ディスパッチャ (login/signal/open/close/shutdown/monitor)
+├── run_daily.bat          # 中央ディスパッチャ (login/signal/open/close/shutdown/monitor/report)
 ├── invest_login.bat       # タスクスケジューラ用ラッパー
 ├── invest_signal.bat
 ├── invest_open.bat
 ├── invest_close.bat
 ├── invest_shutdown.bat
 ├── invest_monitor.bat
+├── invest_report.bat
 │
-├── task_invest_login.xml  # タスクスケジューラ XML定義（5本）
+├── task_invest_login.xml     # タスクスケジューラ XML定義（6本）
 ├── task_invest_signal.xml
 ├── task_invest_open.xml
 ├── task_invest_close.xml
 ├── task_invest_shutdown.xml
+├── task_invest_report.xml
+├── task_names.txt            # タスク名（日本語）の定義ファイル
 │
 ├── invest_import_tasks.bat   # タスク再登録（要管理者権限）
-├── invest_import_tasks.ps1
+├── invest_import_tasks.ps1   # タスク登録スクリプト本体（task_names.txt + XML参照）
+├── invest_sync_tasks.bat     # invest_import_tasks.ps1 を C:\Users\tropi\ へコピー
 │
-├── log_autologin.txt      # kabu_autologin.py / monitor_agent.py のログ
+├── invest_login_hidden.vbs   # VBS非表示起動（タスクスケジューラ用）
+├── invest_shutdown_hidden.vbs
+├── invest_test_autologin.ps1 # 手動テスト用（スリープ不要）
+│
+├── log_autologin.txt      # kabu_autologin.py のログ
 ├── log_signal.txt         # daily_signal.py のログ
-└── log_order.txt          # kabu_order.py のログ
+├── log_order.txt          # kabu_order.py のログ
+├── log_report.txt         # report_agent.py のログ
+├── pnl_history.csv        # calc_pnl.py の出力（日次損益サマリー）
+└── pnl_detail_history.csv # calc_pnl.py の出力（銘柄別明細）
 ```
 
 ---
@@ -52,18 +66,17 @@ G:\My Drive\Claude Code\Invest\
 
 | 時刻  | タスク名（Task Scheduler） | 処理内容                     |
 |-------|---------------------------|------------------------------|
-| **08:47** | invest_login          | kabuStation起動 + 2FA + API認証（VBS非表示起動） |
-| 08:50 | invest_signal             | daily_signal.py → signal_YYYYMMDD.csv |
-| 09:00 | invest_open               | kabu_order.py（DRY RUN 発注） |
-| 09:05 | —（手動 or 別途）          | monitor_agent.py → Gmail（朝通知） |
-| 09:10 | invest_morning_shutdown   | kabuStation終了 → PC自然スリープへ |
-| 〜スリープ〜 | | |
-| 15:10 | invest_afternoon_login    | kabuStation再起動 + 2FA + API認証 |
-| 15:25 | invest_close              | kabu_order.py --close（DRY RUN 決済） |
-| 15:30 | invest_shutdown           | kabuStation終了（VBS非表示起動） |
-| 15:32 | —（手動 or 別途）          | monitor_agent.py → Gmail（夕通知） |
+| **08:47** | 投資戦略_自動ログイン  | kabuStation起動 + 2FA + API認証（VBS非表示起動） |
+| 08:50 | 投資戦略_シグナル計算      | daily_signal.py → signal_YYYYMMDD.csv |
+| 09:00 | 投資戦略_寄付き発注        | kabu_order.py --execute（本番発注） |
+| 〜kabuStation起動したまま待機〜 | | |
+| 15:25 | 投資戦略_引成決済          | kabu_order.py --execute --close（本番決済） |
+| 15:30 | 投資戦略_自動終了          | kabuStation終了（VBS非表示起動） |
+| 15:35 | 投資戦略_損益レポート      | report_agent.py → Gmail通知 |
 
-**タスク登録ファイル**: C:\Users\tropi\invest_import_tasks.ps1（管理者権限で実行）
+**タスク登録手順**:
+1. `invest_sync_tasks.bat` を実行（ps1ファイルを `C:\Users\tropi\` にコピー）
+2. `invest_import_tasks.bat` を**管理者権限**で実行（タスク登録）
 
 ---
 
@@ -73,6 +86,8 @@ G:\My Drive\Claude Code\Invest\
 # スリープ不要の手動テスト（ログイン動作確認用）
 powershell.exe -ExecutionPolicy Bypass -File "G:\My Drive\Claude Code\Invest\invest_test_autologin.ps1"
 ```
+
+スリープ復帰テストは `invest-test-login` スキルを使用（例: `/invest-test-login 20:30`）。
 
 ---
 
@@ -85,7 +100,7 @@ run_daily.bat signal
 # DRY RUN 発注テスト
 run_daily.bat dry
 
-# 本番発注（要 --execute フラグ変更）
+# 本番発注
 run_daily.bat open
 
 # ログ確認
@@ -93,15 +108,17 @@ type log_autologin.txt
 type log_signal.txt
 type log_order.txt
 
-# 今日のシグナルCSV（※ファイル名は米国市場の日付 = 日本の前営業日）
-# 例: 日本04-22の取引 → signal_20260421.csv（前日の米国04-21データ）
-type signal_YYYYMMDD.csv
+# 損益レポート
+run_daily.bat report
 
 # 損益計算（全日）
 python -X utf8 calc_pnl.py
 
 # 損益計算（特定日: 米国市場日付で指定）
 python -X utf8 calc_pnl.py 20260421
+
+# ログトリム
+python -X utf8 trim_logs.py
 ```
 
 ---
@@ -111,7 +128,10 @@ python -X utf8 calc_pnl.py 20260421
 **必ず管理者権限で実行すること**（管理者権限なしでは Set-ScheduledTask が失敗する）
 
 ```bat
-# 管理者コマンドプロンプトで
+# 1. Gドライブ → C:\Users\tropi\ にコピー
+invest_sync_tasks.bat
+
+# 2. 管理者コマンドプロンプトで
 invest_import_tasks.bat
 ```
 
@@ -121,6 +141,12 @@ XML修正時の注意: XMLファイルはUTF-16エンコーディング。PowerS
 ---
 
 ## 重要な既知事項・注意点
+
+### 【重要】Claude Codeブランチ切り替えによるファイル上書きリスク
+- Claude Codeは新セッションを開始するたびに新しいブランチを作成する
+- ブランチ切り替え時にディスク上のファイルが古いバージョンに上書きされる可能性がある
+- **対策**: スクリプト修正後は必ず `master` にマージして push すること
+- 本番タスクが動く前日夜にブランチ操作を行った場合は、翌朝のログを必ず確認すること
 
 ### シグナルファイルの命名規則
 - ファイル名は**米国市場の日付**（日本の前営業日）で保存される
