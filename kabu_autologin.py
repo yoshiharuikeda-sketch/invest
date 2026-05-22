@@ -12,7 +12,7 @@ kabuステーション® 自動起動・ログイン・終了スクリプト
   3. ログインダイアログを待つ
   4. 口座番号フィールドでEnter×2（ログイン開始）
   5. パスキー認証選択ウィンドウを待つ
-  6. Tab×9 + Enter（2FA送信トリガー）
+  6. UIA:「パスキーを作成」にSetFocus → Tab×1 → Enter（パスキーなしで続ける）
   7. GmailからOTPを取得
   8. OTPを入力して「続ける」ボタンを押す
   9. API確認でログイン完了を検証
@@ -289,73 +289,6 @@ def _extract_body(payload: dict) -> str:
     return body
 
 
-# =====================================================================
-# GUI操作（SendInput / オレンジスキャン）
-# =====================================================================
-
-def _build_send_input():
-    """SendInput API を使った OS レベルのマウスクリック関数を返す"""
-    import ctypes, ctypes.wintypes
-    INPUT_MOUSE      = 0
-    MOUSEEVENTF_MOVE     = 0x0001
-    MOUSEEVENTF_LEFTDOWN = 0x0002
-    MOUSEEVENTF_LEFTUP   = 0x0004
-    MOUSEEVENTF_ABSOLUTE = 0x8000
-
-    class MOUSEINPUT(ctypes.Structure):
-        _fields_ = [("dx", ctypes.c_long), ("dy", ctypes.c_long),
-                    ("mouseData", ctypes.c_ulong), ("dwFlags", ctypes.c_ulong),
-                    ("time", ctypes.c_ulong), ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong))]
-
-    class INPUT(ctypes.Structure):
-        class _I(ctypes.Union):
-            _fields_ = [("mi", MOUSEINPUT)]
-        _anonymous_ = ("_i",)
-        _fields_ = [("type", ctypes.c_ulong), ("_i", _I)]
-
-    user32 = ctypes.windll.user32
-    sw = user32.GetSystemMetrics(0)
-    sh = user32.GetSystemMetrics(1)
-
-    def send_click(x, y):
-        nx, ny = int(x * 65535 / sw), int(y * 65535 / sh)
-        inputs = (INPUT * 3)()
-        for i, flags in enumerate([MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
-                                    MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_ABSOLUTE,
-                                    MOUSEEVENTF_LEFTUP | MOUSEEVENTF_ABSOLUTE]):
-            inputs[i].type = INPUT_MOUSE
-            inputs[i].mi.dx = nx
-            inputs[i].mi.dy = ny
-            inputs[i].mi.dwFlags = flags
-        user32.SendInput(3, inputs, ctypes.sizeof(INPUT))
-
-    return send_click
-
-
-def _scan_orange_button(y_min: int, y_max: int, x_min: int = 1000, x_max: int = 1450):
-    """
-    画面上のオレンジ色ボタンをスクリーンショット+numpyで高速検出して中心座標を返す。
-    pyautogui.pixel() のループ（数十秒）の代わりに1回の screenshot で完結する。
-    """
-    import numpy as np
-    from PIL import ImageGrab
-
-    # 対象領域だけキャプチャ（高速）
-    region = (x_min, y_min, x_max, y_max)
-    img = ImageGrab.grab(bbox=region)
-    arr = np.array(img)  # shape: (height, width, 3) RGB
-
-    # オレンジ条件: R>220, G<130, B<30
-    mask = (arr[:, :, 0] > 220) & (arr[:, :, 1] < 130) & (arr[:, :, 2] < 30)
-    ys_rel, xs_rel = np.where(mask)
-
-    if len(xs_rel) == 0:
-        return None, None
-
-    # 絶対座標に変換
-    xs_abs = xs_rel + x_min
-    ys_abs = ys_rel + y_min
-    return int((xs_abs.min() + xs_abs.max()) // 2), int((ys_abs.min() + ys_abs.max()) // 2)
 
 
 def _force_foreground(hwnd: int):
@@ -500,8 +433,8 @@ def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC)
 
 def handle_passkey_dialog(hwnd: int) -> bool:
     """
-    パスキー認証選択画面でTab×9、Enterを押下してパスキーをスキップし2FA送信を開始する。
-    スクリーンロック中でも動作するようPostMessage経由で操作する。
+    パスキー選択画面でUIA経由で「パスキーを作成」ボタンにSetFocusし、
+    Tab×1で「パスキーなしで続ける」にフォーカス移動してEnterで選択する。
     """
     try:
         cef_hwnd = [None]
@@ -522,32 +455,33 @@ def handle_passkey_dialog(hwnd: int) -> bool:
         win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
         time.sleep(0.3)
 
-        # DOM起点クリックでフォーカスの起点を作る
-        target_rect = win32gui.GetWindowRect(target)
-        tw = target_rect[2] - target_rect[0]
-        th = target_rect[3] - target_rect[1]
-        cx, cy = int(tw * 0.50), int(th * 0.50)
-        c_lparam = win32api.MAKELONG(cx, cy)
-        win32api.PostMessage(target, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, c_lparam)
+        # UIA経由で「パスキーを作成」ボタンにSetFocus
+        log.info("UIA:「パスキーを作成」にSetFocus処理")
+        from pywinauto import Desktop
+        try:
+            desktop = Desktop(backend="uia")
+            for w in desktop.windows():
+                try:
+                    btn = w.child_window(title="パスキーを作成", control_type="Button")
+                    if btn.exists(timeout=1):
+                        btn.set_focus()
+                        time.sleep(0.3)
+                        break
+                except Exception:
+                    pass
+        except Exception as e:
+            log.warning(f"UIA SetFocus: {e}")
+
+        # Tab×1で「パスキーなしで続ける」にフォーカス → Enter
+        log.info("「パスキーなしで続ける」フォーカス × Tab×1 × Enter 操作")
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
         time.sleep(0.1)
-        win32api.PostMessage(target, win32con.WM_LBUTTONUP, 0, c_lparam)
-        log.info(f"DOM起点クリック: client({cx}, {cy})")
-        time.sleep(0.5)
-
-        # Tab×8回でボタンにフォーカスを移動
-        for i in range(8):
-            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
-            time.sleep(0.1)
-            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
-            time.sleep(0.15)
-        log.info("Tabキー×8回完了")
+        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
         time.sleep(0.3)
-
-        # Enter（2FA送信トリガー）
         win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
         time.sleep(0.1)
         win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
-        log.info("Enterキー押下（パスキー選択完了 → 2FA送信）")
+        log.info("Enterキー押下（パスキーなしで続ける → 2FA送信）")
         return True
 
     except Exception as e:
@@ -692,8 +626,8 @@ def do_login() -> bool:
         log.info("パスキー選択画面読み込み待機（5秒）...")
         time.sleep(5)
 
-        # 10. Tab×8 + Enter（パスキー選択スキップ）
-        log.info("パスキー選択画面でTab×8 + Enter...")
+        # 10. UIA:「パスキーを作成」にSetFocus → Tab×1 → Enter（パスキーなしで続ける）
+        log.info("パスキー選択画面でUIA SetFocus → Tab×1 + Enter...")
         if not handle_passkey_dialog(dialog.handle):
             return False
 
