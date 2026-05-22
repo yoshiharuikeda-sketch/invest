@@ -74,6 +74,22 @@ G:\My Drive\Claude Code\Invest\
 powershell.exe -ExecutionPolicy Bypass -File "G:\My Drive\Claude Code\Invest\invest_test_autologin.ps1"
 ```
 
+### テストスクリプト（invest_test_login_HHMM.ps1）の使い方
+
+1. Claude Codeがスクリプトを生成してブランチにpush
+2. Windows側で取得・実行（**常にフルパス**で実行すること）：
+
+```powershell
+git -C "G:\My Drive\Claude Code\Invest" fetch origin
+git -C "G:\My Drive\Claude Code\Invest" checkout origin/<branch> -- invest_test_login_HHMM.ps1
+powershell.exe -ExecutionPolicy Bypass -File "G:\My Drive\Claude Code\Invest\invest_test_login_HHMM.ps1"
+```
+
+**注意点：**
+- `git pull` は競合が発生するため使わない。必ず `fetch` + `checkout -- <ファイル>` で個別取得
+- PowerShellコマンドは常にフルパスで指定（カレントディレクトリに依存しない）
+- `git pull` 前には `git stash` が必要な場合がある（ローカル編集済みファイルがあるため）
+
 ---
 
 ## 手動実行コマンド
