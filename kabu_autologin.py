@@ -536,12 +536,15 @@ def handle_passkey_dialog(hwnd: int) -> bool:
             except Exception as e:
                 log.info(f"「パスキーなしで続行」Invoke失敗: {e}")
 
-            # 2. 「パスキーを作成」にSetFocus → Tab×1 → Enter
+            # 2. 「パスキーを作成」にSetFocus → WM_SETFOCUS → Tab×1 → Enter
             if not invoked:
                 btn = win.child_window(title="パスキーを作成", control_type="Button")
                 btn.set_focus()
                 log.info("UIA: 「パスキーを作成」にSetFocus完了")
                 time.sleep(0.5)
+                # Win32レベルのキーボードフォーカスをCEFに確立してからキー送信
+                win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
+                time.sleep(0.3)
                 win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
                 time.sleep(0.1)
                 win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
