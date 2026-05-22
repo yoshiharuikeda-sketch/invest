@@ -500,14 +500,12 @@ def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC)
 
 def handle_passkey_dialog(hwnd: int) -> bool:
     """
-    パスキー認証選択画面で UIA 経由で「パスキーを作成」ボタンを検索し
-    SetFocus（クリックしない）→ Tab×1 → Enter でスキップする。
-    WM_ACTIVATE/WM_SETFOCUS/DOM起点クリックは送らない（カーソルがずれる原因）。
-    UIA失敗時フォールバック: スクリーンショットでオレンジボタン検出 → Tab×1 → Enter。
+    パスキー選択画面で「パスキーなしで続行」を選択する。
+    1. UIA テキスト検索で「パスキーを作成」要素を探しSetFocusでフォーカス（クリックしない）
+    2. UIA失敗時はオレンジボタンをスクリーンショット検出してWM_MOUSEMOVEでホバー
+    3. フォーカス確定後 Tab×1 → Enter で「パスキーなしで続行」を決定する
     """
     try:
-        from pywinauto import Desktop
-
         cef_hwnd = [None]
         def _find_cef(child_hwnd, _):
             if win32gui.GetClassName(child_hwnd) == "Chrome_RenderWidgetHostHWND":
@@ -518,70 +516,58 @@ def handle_passkey_dialog(hwnd: int) -> bool:
             win32gui.EnumChildWindows(hwnd, _find_cef, None)
         except Exception:
             pass
-
         target = cef_hwnd[0] or hwnd
         log.info(f"パスキー選択ウィンドウ: {win32gui.GetClassName(target)} (hwnd={target})")
 
-        # UIA経由で「パスキーを作成」ボタンを探してSetFocus→Tab×1→Enter（最大5回リトライ）
-        btn_found = False
-        for attempt in range(5):
-            try:
-                for w in Desktop(backend="uia").windows():
-                    try:
-                        btn = w.child_window(title_re=".*パスキーを作成.*")
-                        if btn.exists(timeout=2):
-                            log.info(f"UIA: 「パスキーを作成」にSetFocus完了（{attempt+1}回目）")
-                            btn.set_focus()
-                            time.sleep(0.5)
-                            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
-                            time.sleep(0.1)
-                            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
-                            time.sleep(0.2)
-                            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
-                            time.sleep(0.1)
-                            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
-                            log.info("「パスキーを作成」フォーカス → Tab×1 → Enter 完了")
-                            btn_found = True
-                            break
-                    except Exception:
-                        pass
-            except Exception as e:
-                log.warning(f"UIA検索エラー（{attempt+1}回目）: {e}")
-            if btn_found:
-                break
-            log.info(f"UIA未検出（{attempt+1}回目）、1秒後リトライ...")
-            time.sleep(1)
+        focused = False
 
-        if not btn_found:
-            # フォールバック: スクリーンショットでオレンジボタン検出 → ホバーのみ（クリック禁止）
-            log.info("UIA未検出 → スクリーンショットでオレンジボタン検出を試みます")
-            rect = win32gui.GetWindowRect(hwnd)
-            ox, oy = _scan_orange_button(
-                y_min=rect[1], y_max=rect[3],
-                x_min=rect[0], x_max=rect[2]
+        # 1. UIA テキスト検索で「パスキーを作成」を探してフォーカス（クリックしない）
+        try:
+            from pywinauto import Application
+            app = Application(backend="uia").connect(handle=hwnd)
+            win = app.window(handle=hwnd)
+            btn = win.child_window(title="パスキーを作成", control_type="Button")
+            btn.set_focus()
+            log.info("UIA: 「パスキーを作成」にSetFocus完了")
+            focused = True
+        except Exception as e:
+            log.info(f"UIA SetFocus 失敗（続行）: {e}")
+
+        # 2. UIA失敗時: オレンジボタンをスクリーンショット検出してWM_MOUSEMOVEでホバー
+        if not focused:
+            win_rect = win32gui.GetWindowRect(hwnd)
+            win_left, win_top, win_right, win_bottom = win_rect
+            orange_x, orange_y = _scan_orange_button(
+                y_min=win_top + 300,
+                y_max=win_bottom - 50,
+                x_min=win_left,
+                x_max=win_right,
             )
-            if ox is not None:
-                log.info(f"オレンジボタン検出: screen({ox}, {oy})")
-                cx = ox - rect[0]
-                cy = oy - rect[1]
-                c_lparam = win32api.MAKELONG(cx, cy)
-                win32api.PostMessage(target, win32con.WM_MOUSEMOVE, 0, c_lparam)
-                time.sleep(0.5)
-                log.info(f"WM_MOUSEMOVEホバー: client({cx}, {cy})")
-            log.info("フォールバック: Tab×1 → Enter 送信")
-            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
-            time.sleep(0.1)
-            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
-            time.sleep(0.2)
-            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
-            time.sleep(0.1)
-            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
-            log.info("Enterキー押下（パスキー選択完了）")
+            if orange_x is not None:
+                client_pt = win32gui.ScreenToClient(target, (orange_x, orange_y))
+                cx, cy = client_pt
+                log.info(f"オレンジボタン検出: screen({orange_x}, {orange_y}) → client({cx}, {cy})")
+            else:
+                cx, cy = 580, 420
+                log.warning(f"オレンジボタン未検出 → 固定座標: client({cx}, {cy})")
+            lparam = win32api.MAKELONG(cx, cy)
+            win32api.PostMessage(target, win32con.WM_MOUSEMOVE, 0, lparam)
+            log.info(f"WM_MOUSEMOVEホバー: client({cx}, {cy})")
+            time.sleep(0.3)
 
+        # 3. Tab×1 → Enter
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
+        time.sleep(0.1)
+        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
+        time.sleep(0.3)
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
+        time.sleep(0.1)
+        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
+        log.info("「パスキーを作成」フォーカス → Tab×1 → Enter 完了")
         return True
 
     except Exception as e:
-        log.error(f"パスキー選択ウィンドウ操作失敗: {e}")
+        log.error(f"パスキー選択画面操作失敗: {e}")
         return False
 
 
