@@ -528,7 +528,7 @@ def handle_passkey_dialog(hwnd: int) -> bool:
             try:
                 for w in Desktop(backend="uia").windows():
                     try:
-                        btn = w.child_window(title_re=".*パスキーを作成.*", control_type="Button")
+                        btn = w.child_window(title_re=".*パスキーを作成.*")
                         if btn.exists(timeout=2):
                             log.info(f"UIA: 「パスキーを作成」にSetFocus完了（{attempt+1}回目）")
                             btn.set_focus()
@@ -553,7 +553,7 @@ def handle_passkey_dialog(hwnd: int) -> bool:
             time.sleep(1)
 
         if not btn_found:
-            # フォールバック: スクリーンショットでオレンジボタン検出
+            # フォールバック: スクリーンショットでオレンジボタン検出 → ホバーのみ（クリック禁止）
             log.info("UIA未検出 → スクリーンショットでオレンジボタン検出を試みます")
             rect = win32gui.GetWindowRect(hwnd)
             ox, oy = _scan_orange_button(
@@ -562,9 +562,12 @@ def handle_passkey_dialog(hwnd: int) -> bool:
             )
             if ox is not None:
                 log.info(f"オレンジボタン検出: screen({ox}, {oy})")
-                send_click = _build_send_input()
-                send_click(ox, oy)
+                cx = ox - rect[0]
+                cy = oy - rect[1]
+                c_lparam = win32api.MAKELONG(cx, cy)
+                win32api.PostMessage(target, win32con.WM_MOUSEMOVE, 0, c_lparam)
                 time.sleep(0.5)
+                log.info(f"WM_MOUSEMOVEホバー: client({cx}, {cy})")
             log.info("フォールバック: Tab×1 → Enter 送信")
             win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
             time.sleep(0.1)
