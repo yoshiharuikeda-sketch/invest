@@ -701,19 +701,18 @@ def do_login() -> bool:
         if not submit_account_number():
             return False
 
-        # 6. 2FAコードをGmailから取得
-        code = fetch_2fa_code(service, since_dt=login_time)
+        # 6. 2FAコードをGmailから取得（最大30秒）
+        code = fetch_2fa_code(service, since_dt=login_time, timeout_sec=30)
         if code is None:
-            log.error("2FAコード取得失敗 → 自動ログイン中断")
-            return False
+            log.info("2FAコード未着（30秒）→ 2FAスキップしてパスキー選択へ進む")
+        else:
+            # 7. 2FAフォームが表示されるまで待つ
+            time.sleep(3)
 
-        # 7. 2FAフォームが表示されるまで待つ
-        time.sleep(3)
-
-        # 8. コードを入力して「続ける」ボタンを押す
-        if not enter_2fa_code(code, dialog):
-            log.error("2FAコード入力失敗")
-            return False
+            # 8. コードを入力して「続ける」ボタンを押す
+            if not enter_2fa_code(code, dialog):
+                log.error("2FAコード入力失敗")
+                return False
 
         # 9. パスキー選択画面の読み込みを待つ（CEFウィンドウ内に表示される）
         log.info("パスキー選択画面読み込み待機（8秒）...")
