@@ -522,30 +522,35 @@ def handle_passkey_dialog(hwnd: int) -> bool:
         target = cef_hwnd[0] or hwnd
         log.info(f"パスキー選択ウィンドウ: {win32gui.GetClassName(target)} (hwnd={target})")
 
-        # UIA経由で「パスキーを作成」ボタンを探してSetFocus→Tab×1→Enter
+        # UIA経由で「パスキーを作成」ボタンを探してSetFocus→Tab×1→Enter（最大5回リトライ）
         btn_found = False
-        try:
-            for w in Desktop(backend="uia").windows():
-                try:
-                    btn = w.child_window(title_re=".*パスキーを作成.*", control_type="Button")
-                    if btn.exists(timeout=1):
-                        log.info("UIA: 「パスキーを作成」にSetFocus完了")
-                        btn.set_focus()
-                        time.sleep(0.5)
-                        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
-                        time.sleep(0.1)
-                        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
-                        time.sleep(0.2)
-                        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
-                        time.sleep(0.1)
-                        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
-                        log.info("「パスキーを作成」フォーカス → Tab×1 → Enter 完了")
-                        btn_found = True
-                        break
-                except Exception:
-                    pass
-        except Exception as e:
-            log.warning(f"UIA検索エラー: {e}")
+        for attempt in range(5):
+            try:
+                for w in Desktop(backend="uia").windows():
+                    try:
+                        btn = w.child_window(title_re=".*パスキーを作成.*", control_type="Button")
+                        if btn.exists(timeout=2):
+                            log.info(f"UIA: 「パスキーを作成」にSetFocus完了（{attempt+1}回目）")
+                            btn.set_focus()
+                            time.sleep(0.5)
+                            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
+                            time.sleep(0.1)
+                            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
+                            time.sleep(0.2)
+                            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
+                            time.sleep(0.1)
+                            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
+                            log.info("「パスキーを作成」フォーカス → Tab×1 → Enter 完了")
+                            btn_found = True
+                            break
+                    except Exception:
+                        pass
+            except Exception as e:
+                log.warning(f"UIA検索エラー（{attempt+1}回目）: {e}")
+            if btn_found:
+                break
+            log.info(f"UIA未検出（{attempt+1}回目）、1秒後リトライ...")
+            time.sleep(1)
 
         if not btn_found:
             # フォールバック: スクリーンショットでオレンジボタン検出
@@ -711,8 +716,8 @@ def do_login() -> bool:
             return False
 
         # 9. パスキー選択画面の読み込みを待つ（CEFウィンドウ内に表示される）
-        log.info("パスキー選択画面読み込み待機（5秒）...")
-        time.sleep(5)
+        log.info("パスキー選択画面読み込み待機（8秒）...")
+        time.sleep(8)
 
         # 10. 「パスキーを作成」にSetFocus → Tab×1 → Enter（パスキー選択スキップ）
         log.info("パスキー選択画面で「パスキーなしで続行」クリック...")
