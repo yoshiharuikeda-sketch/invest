@@ -158,7 +158,7 @@ XML修正時の注意: XMLファイルはUTF-16エンコーディング。PowerS
 - 現在のステータス: 本番稼働中（2026-05-19より実発注開始）
 
 ### kabuStation自動ログインフロー（2026-05 新仕様）
-kabuStationのログイン仕様変更に伴い `kabu_autologin.py` を更新済み（2026-04-28〜05-21）。
+kabuStationのログイン仕様変更に伴い `kabu_autologin.py` を更新済み（2026-04-28〜05-22）。
 
 **ログインステップ順序（重要）:**
 1. Gmail API初期化
@@ -166,22 +166,23 @@ kabuStationのログイン仕様変更に伴い `kabu_autologin.py` を更新済
 3. kabuStation未起動なら起動
 4. ログインダイアログ待機（最大90秒）
 5. 口座番号をWM_CHARで入力 → Enter×2（これで2FAメール送信される）
-6. GmailからOTPコード取得（最大30秒）、未着の場合はスキップ
-7. 2FAフォーム表示待機（3秒）
-8. OTPをWM_CHARで入力 → Enter
-9. パスキー選択画面読み込み待機（5秒）
-10. pywinauto UIA で「パスキーを作成」ボタンを検索 → SetFocus（クリックしない） → Tab×1 → Enter
-    - UIA失敗時フォールバック: スクリーンショットでオレンジボタン検出 → WM_MOUSEMOVEホバー → Tab×1 → Enter
-    - CEFウィンドウはUIAutomationツリーを部分的に公開しており、ボタン検索は機能する
-11. API認証確認（最大120秒）
+6. GmailからOTPコード取得（最大30秒）、未着の場合はスキップして次へ進む
+7. OTP届いた場合: 2FAフォーム表示待機（3秒）→ OTPをWM_CHARで入力 → Enter
+8. パスキー選択画面読み込み待機（8秒）
+9. パスキー選択画面の処理（優先順位順）:
+   - **第1優先**: pywinauto UIA で `title_re=".*パスキーなし.*"` を検索 → `invoke()` で直接選択
+   - **第2優先**: pywinauto UIA で `Application().connect(handle=hwnd)` で接続 → 「パスキーを作成」にSetFocus → WM_SETFOCUS送信 → Tab×1 → Enter
+   - **フォールバック**: スクリーンショットでオレンジボタン検出 → WM_MOUSEMOVEホバー → Tab×1 → Enter
+10. API認証確認（最大120秒）
 
 **重要な実装ルール:**
 - 口座番号・2FAコード入力時はフォーカス操作（WM_ACTIVATE / WM_SETFOCUS）を**送らない**（カーソルが外れる原因）
 - 口座番号・2FAコード入力時はDOM起点クリック（WM_LBUTTONDOWN）も**送らない**（同上）
 - 口座番号・OTP入力ともにカーソルは起動時から正しい位置にある
 - パスキー選択画面で「パスキーを作成」ボタンを**クリックしてはいけない**（パスキー作成フローに遷移する）
-- SetFocusでフォーカスを当ててTabで次要素（パスキーなしで続行）に移動してからEnterで確定
+- 「パスキーなしで続行」はUIAの `invoke()` で選択可能（テキスト選択はできないがInvokePatternは公開されている）
 - パスキー選択ウィンドウは独立した新ウィンドウではなく既存CEFウィンドウ内に表示される
+- UIAのInvokeはモニターオフでも機能する（COM/IPC経由のため）。スクリーンロック中も `LogonType Interactive` タスクであれば機能する可能性が高い
 
 ---
 
