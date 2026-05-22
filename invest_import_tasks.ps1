@@ -1,58 +1,47 @@
-﻿# Invest task registration - all tasks defined inline (no G: drive needed, safe for admin mode)
-# Run as Administrator
-
+# Task re-registration script (ASCII only - task names loaded from file)
 $log = "C:\Users\tropi\invest_import_result.txt"
-"[$(Get-Date)] Start task registration" | Out-File $log -Encoding utf8
+"[$(Get-Date)] Start" | Out-File $log -Encoding utf8
 
-$vbsLogin    = "`"G:\My Drive\Claude Code\Invest\invest_login_hidden.vbs`""
-$vbsShutdown = "`"G:\My Drive\Claude Code\Invest\invest_shutdown_hidden.vbs`""
-$batSignal   = "G:\My Drive\Claude Code\Invest\invest_signal.bat"
-$batOpen     = "G:\My Drive\Claude Code\Invest\invest_open.bat"
-$batClose    = "G:\My Drive\Claude Code\Invest\invest_close.bat"
-$batMonitor  = "G:\My Drive\Claude Code\Invest\invest_monitor.bat"
+# Load task names from UTF-8 file (avoids encoding issue in this script)
+$names = [System.IO.File]::ReadAllLines(
+    'C:\Users\tropi\task_names.txt',
+    [System.Text.Encoding]::UTF8
+) | Where-Object { $_ -match '\S' }
 
-$settings  = New-ScheduledTaskSettingsSet -WakeToRun -ExecutionTimeLimit (New-TimeSpan -Minutes 30) -MultipleInstances IgnoreNew
-$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
-
-$tasks = @(
-    @{ Name="invest_login";            At="08:45"; Exe="wscript.exe"; Arg=$vbsLogin    },
-    @{ Name="invest_signal";           At="08:50"; Exe=$batSignal;    Arg=""            },
-    @{ Name="invest_open";             At="09:00"; Exe=$batOpen;      Arg=""            },
-    @{ Name="invest_morning_shutdown"; At="09:10"; Exe="wscript.exe"; Arg=$vbsShutdown },
-    @{ Name="invest_afternoon_login";  At="15:10"; Exe="wscript.exe"; Arg=$vbsLogin    },
-    @{ Name="invest_close";            At="15:25"; Exe=$batClose;     Arg=""            },
-    @{ Name="invest_shutdown";         At="15:30"; Exe="wscript.exe"; Arg=$vbsShutdown }
+$xmlFiles = @(
+    'C:\Users\tropi\task_invest_login.xml',
+    'C:\Users\tropi\task_invest_signal.xml',
+    'C:\Users\tropi\task_invest_open.xml',
+    'C:\Users\tropi\task_invest_close.xml',
+    'C:\Users\tropi\task_invest_shutdown.xml',
+    'C:\Users\tropi\task_invest_report.xml'
 )
 
-foreach ($t in $tasks) {
-    $trigger = New-ScheduledTaskTrigger -Weekly -WeeksInterval 1 `
-        -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday `
-        -At $t.At
+for ($i = 0; $i -lt $names.Count; $i++) {
+    $name    = $names[$i]
+    $xmlPath = $xmlFiles[$i]
 
-    if ($t.Arg -ne "") {
-        $action = New-ScheduledTaskAction -Execute $t.Exe -Argument $t.Arg
-    } else {
-        $action = New-ScheduledTaskAction -Execute $t.Exe
-    }
+    # Delete existing task
+    Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue
 
-    Unregister-ScheduledTask -TaskName $t.Name -Confirm:$false -ErrorAction SilentlyContinue
-    $result = Register-ScheduledTask -TaskName $t.Name -Action $action -Trigger $trigger `
-              -Settings $settings -Principal $principal -Force 2>&1
-
+    # Import from XML
+    $xml    = [System.IO.File]::ReadAllText($xmlPath, [System.Text.Encoding]::UTF8)
+    $result = Register-ScheduledTask -TaskName $name -Xml $xml -Force 2>&1
     if ($?) {
-        $msg = "[OK] $($t.Name) at $($t.At)"
+        $msg = "[OK] $name -> $($xmlFiles[$i])"
     } else {
-        $msg = "[NG] $($t.Name) : $result"
+        $msg = "[NG] $name : $result"
     }
     $msg | Add-Content $log -Encoding utf8
     Write-Host $msg
 }
 
-"`n--- Registered tasks ---" | Add-Content $log -Encoding utf8
-foreach ($t in $tasks) {
-    $task = Get-ScheduledTask -TaskName $t.Name -ErrorAction SilentlyContinue
-    if ($task) {
-        $line = "$($t.Name) -> $($task.Actions[0].Execute) $($task.Actions[0].Arguments)"
+# Verify actions
+"`n--- Action check ---" | Add-Content $log -Encoding utf8
+foreach ($name in $names) {
+    $t = Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+    if ($t) {
+        $line = "$name -> $($t.Actions[0].Execute)"
         $line | Add-Content $log -Encoding utf8
         Write-Host $line
     }
