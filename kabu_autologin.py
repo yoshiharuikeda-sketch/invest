@@ -25,6 +25,7 @@ kabuステーション® 自動起動・ログイン・終了スクリプト
 
 import argparse
 import ctypes
+import json
 import os
 import re
 import time
@@ -130,10 +131,11 @@ def shutdown_kabustation() -> bool:
     def _enum(hwnd, _):
         nonlocal main_hwnd
         if not win32gui.IsWindowVisible(hwnd):
-            return
+            return True
         title = win32gui.GetWindowText(hwnd)
         if "kabuステーション" in title and "ログイン" not in title:
             main_hwnd = hwnd
+        return True
 
     win32gui.EnumWindows(_enum, None)
 
@@ -192,7 +194,9 @@ def _read_api_password() -> str:
 
 
 def is_api_ready() -> bool:
-    """kabu APIトークンが取得できるか（ログイン済み確認）"""
+    """kabu APIトークンが取得できるか（ログイン済み確認）。
+    成功時は kabu_order.py と共有する .kabu_token.json にトークンを保存する。
+    """
     import requests
     password = _read_api_password()
     if not password:
@@ -203,7 +207,15 @@ def is_api_ready() -> bool:
             json={"APIPassword": password},
             timeout=5,
         )
-        return resp.status_code == 200
+        if resp.status_code == 200:
+            token = resp.json().get("Token")
+            if token:
+                today = datetime.now().strftime("%Y-%m-%d")
+                token_cache = DIR / ".kabu_token.json"
+                with open(token_cache, "w") as f:
+                    json.dump({"date": today, "token": token}, f)
+            return True
+        return False
     except Exception:
         return False
 
