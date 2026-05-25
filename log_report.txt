@@ -34,3 +34,6 @@ PermissionError: [Errno 13] Permission denied: 'G:\\My Drive\\Claude Code\\Inves
 [2026-05-22 19:29:22] === report_agent 開始: 2026-05-22 ===
 [2026-05-22 19:29:26] P&L保存: 2026-05-21  -928円 (-0.094%)
 [2026-05-22 19:29:27] Gmail初期化失敗: ('invalid_grant: Bad Request', {'error': 'invalid_grant', 'error_description': 'Bad Request'})
+[2026-05-25 21:56:08] === report_agent 開始: 2026-05-25 ===
+[2026-05-25 21:56:11] P&L保存: 2026-05-22  -3,060円 (-0.309%)
+[2026-05-25 21:56:11] 週次・月次レポート対象日ではありません
