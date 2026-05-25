@@ -95,6 +95,11 @@ JP_TICKER_TO_CODE = {
 # 一般信用デイトレ売建非対応のためSHORTをスキップする銘柄
 SHORT_SKIP_TICKERS = {"1617.T", "1620.T", "1623.T"}
 
+# 非ETF代替銘柄の単元株数（ETF=1口単位のため1でない銘柄のみ記載）
+LOT_SIZE = {
+    "8058": 100,   # 三菱商事（単元株100株）
+}
+
 JP_NAMES = {
     "1617.T": "食品",           "1618.T": "エネルギー資源",
     "1619.T": "建設・資材",     "1620.T": "素材・化学",
@@ -332,7 +337,8 @@ def calc_order_qty(
 ) -> int:
     """
     ウェイトとポートフォリオ規模から発注口数を計算
-    最低単元（1口）単位に切り下げ
+    単元株単位に切り下げ（ETF=1口、個別株=LOT_SIZE参照）
+    板情報取得失敗時は0を返してスキップ
     """
     code = JP_TICKER_TO_CODE.get(ticker)
     if not code:
@@ -340,13 +346,16 @@ def calc_order_qty(
 
     try:
         board = get_board(token, code)
-        price = board.get("CurrentPrice") or board.get("CalcPrice", 1000)
+        price = board.get("CurrentPrice") or board.get("CalcPrice")
+        if not price:
+            return 0
     except Exception:
-        price = 1000   # 取得失敗時のデフォルト価格
+        return 0   # 板情報取得失敗（トークン期限切れ等）はスキップ
 
+    lot = LOT_SIZE.get(code, 1)
     target_value = portfolio_value * abs(weight)
-    qty = int(target_value / price)   # TOPIX-17 ETFは1口単位
-    return max(qty, 1) if target_value > 0 else 0
+    qty = int(target_value / price / lot) * lot
+    return max(qty, lot) if target_value > 0 else 0
 
 
 # =====================================================================
@@ -379,13 +388,26 @@ def run_orders(
         print(f"  ❌ トークン取得失敗: {e}")
         return
 
-    # ---- 残高確認 ----
+    # ---- 残高確認（401時はトークン再取得して再試行） ----
     print("\n【2. 残高確認】")
     try:
         wallet = get_wallet(token)
         fmt = lambda v: f"{v:,.0f}" if isinstance(v, (int, float)) else str(v)
         print(f"  現物買付余力: {fmt(wallet.get('StockAccountWallet', 'N/A'))}円")
         print(f"  信用新規余力: {fmt(wallet.get('MarginAccountWallet', 'N/A'))}円")
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 401:
+            print("  ⚠️  トークン期限切れを検出 → 再認証します")
+            try:
+                token = get_token(force_refresh=True)
+                wallet = get_wallet(token)
+                fmt = lambda v: f"{v:,.0f}" if isinstance(v, (int, float)) else str(v)
+                print(f"  現物買付余力: {fmt(wallet.get('StockAccountWallet', 'N/A'))}円")
+                print(f"  信用新規余力: {fmt(wallet.get('MarginAccountWallet', 'N/A'))}円")
+            except Exception as e2:
+                print(f"  ⚠️  残高取得エラー（続行します）: {e2}")
+        else:
+            print(f"  ⚠️  残高取得エラー（続行します）: {e}")
     except Exception as e:
         print(f"  ⚠️  残高取得エラー（続行します）: {e}")
 

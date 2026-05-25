@@ -1,0 +1,39 @@
+  File "G:\My Drive\Claude Code\Invest\report_agent.py", line 306
+    f"{_td(f\"{float(r['合計損益(円)']):+,.0f}円\", color=_color(r['合計損益(円)']))}"
+             ^
+SyntaxError: unexpected character after line continuation character
+  File "G:\My Drive\Claude Code\Invest\report_agent.py", line 306
+    f"{_td(f\"{float(r['合計損益(円)']):+,.0f}円\", color=_color(r['合計損益(円)']))}"
+             ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "G:\My Drive\Claude Code\Invest\report_agent.py", line 44, in <module>
+    logging.basicConfig(
+    ~~~~~~~~~~~~~~~~~~~^
+        filename=LOG_FILE, level=logging.INFO,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        format="[%(asctime)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        encoding="utf-8",
+        ^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\tropi\AppData\Local\Python\pythoncore-3.14-64\Lib\logging\__init__.py", line 2101, in basicConfig
+    h = FileHandler(filename, mode,
+                    encoding=encoding, errors=errors)
+  File "C:\Users\tropi\AppData\Local\Python\pythoncore-3.14-64\Lib\logging\__init__.py", line 1219, in __init__
+    StreamHandler.__init__(self, self._open())
+                                 ~~~~~~~~~~^^
+  File "C:\Users\tropi\AppData\Local\Python\pythoncore-3.14-64\Lib\logging\__init__.py", line 1248, in _open
+    return open_func(self.baseFilename, self.mode,
+                     encoding=self.encoding, errors=self.errors)
+PermissionError: [Errno 13] Permission denied: 'G:\\My Drive\\Claude Code\\Invest\\log_report.txt'
+[2026-05-21 20:54:56] === report_agent 開始: 2026-05-21 ===
+[2026-05-21 20:54:58] P&L保存: 2026-05-20  +1,149円 (0.116%)
+[2026-05-21 20:54:58] 週次・月次レポート対象日ではありません
+[2026-05-22 19:29:22] === report_agent 開始: 2026-05-22 ===
+[2026-05-22 19:29:26] P&L保存: 2026-05-21  -928円 (-0.094%)
+[2026-05-22 19:29:27] Gmail初期化失敗: ('invalid_grant: Bad Request', {'error': 'invalid_grant', 'error_description': 'Bad Request'})
+[2026-05-25 21:56:08] === report_agent 開始: 2026-05-25 ===
+[2026-05-25 21:56:11] P&L保存: 2026-05-22  -3,060円 (-0.309%)
+[2026-05-25 21:56:11] 週次・月次レポート対象日ではありません
