@@ -420,6 +420,29 @@ def run_orders(
     shorts = df_signal[df_signal["ポジション"] < 0].copy()
     print(f"  LONG : {len(longs)}銘柄 / SHORT: {len(shorts)}銘柄")
 
+    # ---- 実保有建玉の取得（決済時のみ）----
+    # {(証券コード, Side): 残数量} Side="2"=買建, "1"=売建
+    held_qty: dict = {}
+    if not open_order:
+        print("\n【3.5. 実保有建玉確認】")
+        try:
+            df_pos = get_positions(token)
+            if not df_pos.empty:
+                for _, pos in df_pos.iterrows():
+                    sym  = str(pos.get("Symbol", ""))
+                    side = str(pos.get("Side", ""))
+                    qty  = int(pos.get("LeavesQty", 0))
+                    if sym and qty > 0:
+                        held_qty[(sym, side)] = held_qty.get((sym, side), 0) + qty
+            if held_qty:
+                for (sym, side), qty in held_qty.items():
+                    side_str = "買建" if side == SIDE_BUY else "売建"
+                    print(f"  [{sym}] {side_str} {qty}口")
+            else:
+                print("  保有建玉なし")
+        except Exception as e:
+            print(f"  ⚠️  建玉取得エラー（シグナルベースで決済します）: {e}")
+
     # ---- 発注内容の確認 ----
     front_type = 10 if open_order else 16   # 10=成行寄付, 16=引成（後場）
     order_label = "寄付き成行" if open_order else "引成成行"
@@ -453,9 +476,16 @@ def run_orders(
         code   = JP_TICKER_TO_CODE.get(ticker, "")
         if not code:
             continue
-        qty = calc_order_qty(ticker, row["ポジション"], portfolio_value, token)
-        if qty == 0:
-            continue
+        if not open_order:
+            # 決済時：実保有の買建玉数量を使用
+            qty = held_qty.get((code, SIDE_BUY), 0)
+            if qty == 0:
+                print(f"    [{code}] {JP_NAMES.get(ticker, ticker)} スキップ（買建玉なし）")
+                continue
+        else:
+            qty = calc_order_qty(ticker, row["ポジション"], portfolio_value, token)
+            if qty == 0:
+                continue
         result = send_order(
             token, code, long_side, qty,
             cash_margin=long_cm,
@@ -478,9 +508,16 @@ def run_orders(
         code   = JP_TICKER_TO_CODE.get(ticker, "")
         if not code:
             continue
-        qty = calc_order_qty(ticker, abs(row["ポジション"]), portfolio_value, token)
-        if qty == 0:
-            continue
+        if not open_order:
+            # 決済時：実保有の売建玉数量を使用
+            qty = held_qty.get((code, SIDE_SELL), 0)
+            if qty == 0:
+                print(f"    [{code}] {JP_NAMES.get(ticker, ticker)} スキップ（売建玉なし）")
+                continue
+        else:
+            qty = calc_order_qty(ticker, abs(row["ポジション"]), portfolio_value, token)
+            if qty == 0:
+                continue
         result = send_order(
             token, code, short_side, qty,
             cash_margin=short_cm,
