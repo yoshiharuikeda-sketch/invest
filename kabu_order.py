@@ -73,7 +73,7 @@ API_PASSWORD    = _load_api_password()
 
 # 発注設定
 ORDER_TYPE        = 1    # 1: 成行, 2: 指値
-FRONT_ORDER_TYPE  = 10   # 10: 成行（寄付）, 13: 成行（引成）
+FRONT_ORDER_TYPE  = 10   # 10: 成行（寄付）, 16: 引成（後場）
 CASH_MARGIN       = 2    # 1: 現物, 2: 信用新規, 3: 信用返済
 MARGIN_TRADE_TYPE = 3    # 1: 制度信用, 2: 一般信用（長期）, 3: 一般信用（デイトレ）
 SIDE_BUY          = "2"  # 買い
@@ -92,11 +92,12 @@ JP_TICKER_TO_CODE = {
 }
 
 # 一般信用デイトレ売建非対応のためSHORTをスキップする銘柄
-SHORT_SKIP_TICKERS = {"1617.T", "1620.T", "1623.T"}
+SHORT_SKIP_TICKERS = {"1617.T", "1620.T", "1623.T", "1629.T"}  # 1629.T→8058(三菱商事)は売建規制対象
 
 # 非ETF代替銘柄の単元株数（ETF=1口単位のため1でない銘柄のみ記載）
 LOT_SIZE = {
     "8058": 100,   # 三菱商事（単元株100株）
+    "1343": 10,    # NEXT FUNDS 東証REIT指数ETF（売買単位10口）
 }
 
 JP_NAMES = {
@@ -420,7 +421,7 @@ def run_orders(
     print(f"  LONG : {len(longs)}銘柄 / SHORT: {len(shorts)}銘柄")
 
     # ---- 発注内容の確認 ----
-    front_type = 10 if open_order else 13   # 10=成行寄付, 13=成行引成
+    front_type = 10 if open_order else 16   # 10=成行寄付, 16=引成（後場）
     order_label = "寄付き成行" if open_order else "引成成行"
     print(f"\n【4. 発注内容（{order_label}）】")
 
