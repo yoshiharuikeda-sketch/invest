@@ -700,13 +700,18 @@ def do_login() -> bool:
             log.info("kabuステーションは既にログイン済みです（APIトークン取得成功）")
             return True
 
-        # 3. 未起動なら起動
-        if not is_kabustation_running():
-            log.info("kabuステーション未起動 → 起動します")
-            if not launch_kabustation():
-                return False
-            # 起動直後は少し待つ
-            time.sleep(10)
+        # 3. 起動確認・必要に応じて再起動
+        if is_kabustation_running():
+            # 起動中だがAPIが使えない = 前回ログイン失敗の残骸 → 再起動してクリーンな状態にする
+            log.info("kabuステーション起動中だがAPIが使えない → 再起動します")
+            shutdown_kabustation()
+            time.sleep(3)
+
+        log.info("kabuステーション未起動 → 起動します")
+        if not launch_kabustation():
+            return False
+        # 起動直後は少し待つ
+        time.sleep(10)
 
         # 4. ログインダイアログを待つ
         dialog = find_login_dialog(timeout_sec=LOGIN_WAIT_SEC)
