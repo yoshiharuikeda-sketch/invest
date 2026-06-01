@@ -497,6 +497,7 @@ def run_orders(
             "Ticker": ticker, "Side": "BUY" if long_side == SIDE_BUY else "SELL",
             "Qty": qty, "Result": result
         })
+        time.sleep(0.5)
 
     # ショート
     print(f"\n  ▼ {short_label}")
@@ -529,6 +530,7 @@ def run_orders(
             "Ticker": ticker, "Side": "BUY" if short_side == SIDE_BUY else "SELL",
             "Qty": qty, "Result": result
         })
+        time.sleep(0.5)
 
     # ---- サマリー ----
     print(f"\n【5. 発注サマリー】")
