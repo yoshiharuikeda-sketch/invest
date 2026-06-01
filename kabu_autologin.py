@@ -704,7 +704,9 @@ def do_login() -> bool:
         if is_kabustation_running():
             # 起動中だがAPIが使えない = 前回ログイン失敗の残骸 → 再起動してクリーンな状態にする
             log.info("kabuステーション起動中だがAPIが使えない → 再起動します")
-            shutdown_kabustation()
+            if not shutdown_kabustation():
+                log.error("kabuステーション終了失敗 → 多重起動を防ぐためログイン中断")
+                return False
             time.sleep(3)
 
         log.info("kabuステーション未起動 → 起動します")

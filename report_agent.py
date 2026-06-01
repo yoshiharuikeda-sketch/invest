@@ -332,10 +332,12 @@ def build_daily_html(summary: dict, df_detail: pd.DataFrame) -> str:
             f"{_td(r.get('備考',''))}</tr>"
         )
 
-    slip_total = df_detail["スリッページ(円)"].sum(skipna=True) if "スリッページ(円)" in df_detail.columns else None
+    has_slip = ("スリッページ(円)" in df_detail.columns
+                and df_detail["スリッページ(円)"].notna().any())
+    slip_total = float(df_detail["スリッページ(円)"].sum(skipna=True)) if has_slip else None
     slip_line  = (f"<br>スリッページ合計: <b style='color:{_slip_color(slip_total)}'>"
-                  f"{float(slip_total):+,.0f}円</b>"
-                  if slip_total is not None and not pd.isna(slip_total) else "")
+                  f"{slip_total:+,.0f}円</b>"
+                  if slip_total is not None else "")
 
     return f"""<html><body style="font-family:sans-serif;max-width:700px;margin:auto;padding:20px">
 <h2 style="color:#1565C0">日次損益レポート — {date}</h2>

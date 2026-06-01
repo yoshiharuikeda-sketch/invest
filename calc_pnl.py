@@ -317,13 +317,14 @@ def process_one_day(csv_path: str) -> dict | None:
         "日付":       date.strftime("%Y-%m-%d"),
         "合計損益(円)": round(total_pnl),
         "損益率(%)":  round(total_pnl / PORTFOLIO_VALUE * 100, 3),
-    }
+    }, detail
 
 
 def main():
-    # 対象日の指定（引数があれば絞り込み）
-    if len(sys.argv) > 1:
-        target = sys.argv[1]  # e.g. "20260420"
+    # 対象日の指定（--save 以外の引数があれば絞り込み）
+    positional = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if positional:
+        target  = positional[0]  # e.g. "20260420"
         pattern = os.path.join(SCRIPT_DIR, f"signal_{target}.csv")
     else:
         pattern = os.path.join(SCRIPT_DIR, "signal_????????.csv")
@@ -336,11 +337,24 @@ def main():
 
     print(f"対象ファイル数: {len(csv_files)}件  ポートフォリオ: {PORTFOLIO_VALUE:,}円")
 
-    summaries = []
+    summaries  = []
+    detail_dfs = []
     for path in csv_files:
         result = process_one_day(path)
         if result:
-            summaries.append(result)
+            summary, detail = result
+            summaries.append(summary)
+            detail_with_date = detail.copy()
+            detail_with_date.insert(0, "日付", summary["日付"])
+            detail_dfs.append(detail_with_date)
+
+    # pnl_detail_history.csv を上書き保存（--save フラグ時）
+    if "--save" in sys.argv and detail_dfs:
+        detail_path = os.path.join(SCRIPT_DIR, "pnl_detail_history.csv")
+        pd.concat(detail_dfs, ignore_index=True).sort_values("日付").to_csv(
+            detail_path, index=False, encoding="utf-8-sig"
+        )
+        print(f"\n  ✅ pnl_detail_history.csv を再保存しました（{len(detail_dfs)}日分）")
 
     if len(summaries) >= 2:
         print(f"\n{'='*60}")
