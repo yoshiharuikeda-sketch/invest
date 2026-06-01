@@ -72,10 +72,12 @@ def get_date_from_filename(path: str):
 def fetch_ohlc(tickers: list, date: datetime) -> pd.DataFrame:
     """
     指定日の Open / Close を yfinance から取得する。
+    date はシグナルの米国日付なので、日本取引日 = date + 1 BDay で取得する。
     当日データがない場合（休場等）は空DataFrameを返す。
     """
-    date_str  = date.strftime("%Y-%m-%d")
-    next_date = pd.Timestamp(date) + pd.offsets.BDay(1)
+    japan_date = pd.Timestamp(date) + pd.offsets.BDay(1)
+    date_str  = japan_date.strftime("%Y-%m-%d")
+    next_date = japan_date + pd.offsets.BDay(1)
     next_str  = next_date.strftime("%Y-%m-%d")
 
     raw = yf.download(
