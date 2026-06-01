@@ -7,7 +7,8 @@
 
 **証券会社**: 三菱UFJ eスマート証券（旧auカブコム）  
 **API**: kabuステーション® REST API (localhost:18080)  
-**運用モード**: 本番稼働中（`--execute` あり、2026-05-19より実発注開始）
+**運用モード**: 本番稼働中（`--execute` あり、2026-05-19より実発注開始）  
+**運用規模**: PORTFOLIO_VALUE=300,000円（戦略有効性確認中のため縮小運用中）
 
 ---
 
@@ -22,31 +23,34 @@ G:\My Drive\Claude Code\Invest\
 ├── daily_signal.py        # シグナル計算（米国前日 → 日本当日）
 ├── kabu_order.py          # 発注モジュール（DRY RUN / 本番）
 ├── kabu_autologin.py      # kabuStation自動ログイン（GUI自動化）
+├── fetch_fills.py         # 約定照会（15:32実行 → fills_YYYYMMDD.csv 保存）
 ├── monitor_agent.py       # ログ監視 → Gmail通知
 ├── report_agent.py        # 損益レポート生成 → Gmail通知
-├── calc_pnl.py            # 損益計算（CSVに出力）
+├── calc_pnl.py            # 損益計算（実約定データ優先、なければyfinance）
 ├── trim_logs.py           # ログファイル古い行の削除
 │
-├── run_daily.bat          # 中央ディスパッチャ (login/signal/open/close/shutdown/monitor/report)
+├── run_daily.bat          # 中央ディスパッチャ (login/signal/open/close/fills/shutdown/monitor/report)
 ├── invest_login.bat       # タスクスケジューラ用ラッパー
 ├── invest_signal.bat
 ├── invest_open.bat
 ├── invest_close.bat
+├── invest_fills.bat       # 約定照会ラッパー
 ├── invest_shutdown.bat
 ├── invest_monitor.bat
 ├── invest_report.bat
 │
-├── task_invest_login.xml     # タスクスケジューラ XML定義（6本）
+├── task_invest_login.xml     # タスクスケジューラ XML定義（7本、UTF-8）
 ├── task_invest_signal.xml
 ├── task_invest_open.xml
 ├── task_invest_close.xml
+├── task_invest_fills.xml     # 約定照会タスク（15:32）
 ├── task_invest_shutdown.xml
 ├── task_invest_report.xml
 ├── task_names.txt            # タスク名（日本語）の定義ファイル
 │
 ├── invest_import_tasks.bat   # タスク再登録（要管理者権限）
 ├── invest_import_tasks.ps1   # タスク登録スクリプト本体（task_names.txt + XML参照）
-├── invest_sync_tasks.bat     # invest_import_tasks.ps1 を C:\Users\tropi\ へコピー
+├── invest_sync_tasks.bat     # ps1・task_names.txt・全XMLを C:\Users\tropi\ へコピー
 │
 ├── invest_login_hidden.vbs   # VBS非表示起動（タスクスケジューラ用）
 ├── invest_shutdown_hidden.vbs
@@ -55,9 +59,11 @@ G:\My Drive\Claude Code\Invest\
 ├── log_autologin.txt      # kabu_autologin.py のログ
 ├── log_signal.txt         # daily_signal.py のログ
 ├── log_order.txt          # kabu_order.py のログ
+├── log_fills.txt          # fetch_fills.py のログ
 ├── log_report.txt         # report_agent.py のログ
-├── pnl_history.csv        # calc_pnl.py の出力（日次損益サマリー）
-└── pnl_detail_history.csv # calc_pnl.py の出力（銘柄別明細）
+├── fills_YYYYMMDD.csv     # fetch_fills.py の出力（実約定価格・数量）
+├── pnl_history.csv        # report_agent.py の出力（日次損益サマリー）
+└── pnl_detail_history.csv # report_agent.py の出力（銘柄別明細）
 ```
 
 ---
@@ -66,17 +72,19 @@ G:\My Drive\Claude Code\Invest\
 
 | 時刻  | タスク名（Task Scheduler） | 処理内容                     |
 |-------|---------------------------|------------------------------|
-| **08:47** | 投資戦略_自動ログイン  | kabuStation起動 + 2FA + API認証（VBS非表示起動） |
+| **08:41** | 投資戦略_自動ログイン（1回目） | kabuStation起動 + 2FA + API認証（VBS非表示起動） |
+| **08:45** | 投資戦略_自動ログイン（2回目） | 1回目失敗時のリトライ（成功時は即終了） |
 | 08:50 | 投資戦略_シグナル計算      | daily_signal.py → signal_YYYYMMDD.csv |
 | 09:00 | 投資戦略_寄付き発注        | kabu_order.py --execute（本番発注） |
 | 〜kabuStation起動したまま待機〜 | | |
 | 15:25 | 投資戦略_引成決済          | kabu_order.py --execute --close（本番決済） |
-| 15:30 | 投資戦略_自動終了          | kabuStation終了（VBS非表示起動） |
-| 15:35 | 投資戦略_損益レポート      | report_agent.py → Gmail通知 |
+| 15:32 | 投資戦略_約定照会          | fetch_fills.py → fills_YYYYMMDD.csv（実約定価格保存） |
+| 15:35 | 投資戦略_損益レポート      | report_agent.py → Gmail通知（実約定データ優先） |
+| 15:40 | 投資戦略_自動終了          | kabuStation終了（VBS非表示起動） |
 
-**タスク登録手順**:
-1. `invest_sync_tasks.bat` を実行（ps1ファイルを `C:\Users\tropi\` にコピー）
-2. `invest_import_tasks.bat` を**管理者権限**で実行（タスク登録）
+**タスク登録手順**（管理者権限不要 — Claude Codeから直接実行可能）:
+1. `invest_sync_tasks.bat` を実行（ps1・task_names.txt・全XMLを `C:\Users\tropi\` にコピー）
+2. `invest_import_tasks.ps1` を実行（タスク登録）
 
 ---
 
@@ -107,6 +115,10 @@ run_daily.bat open
 type log_autologin.txt
 type log_signal.txt
 type log_order.txt
+type log_fills.txt
+
+# 約定照会（kabuStation起動中のみ）
+run_daily.bat fills
 
 # 損益レポート
 run_daily.bat report
@@ -125,18 +137,48 @@ python -X utf8 trim_logs.py
 
 ## タスクスケジューラの再登録
 
-**必ず管理者権限で実行すること**（管理者権限なしでは Set-ScheduledTask が失敗する）
+Claude Codeから直接実行可能（管理者権限不要、ただしSIDが一致していること）。
 
 ```bat
-# 1. Gドライブ → C:\Users\tropi\ にコピー
+# 1. Gドライブ → C:\Users\tropi\ にコピー（ps1・task_names.txt・全XML）
 invest_sync_tasks.bat
 
-# 2. 管理者コマンドプロンプトで
-invest_import_tasks.bat
+# 2. タスク登録
+powershell -ExecutionPolicy Bypass -File C:\Users\tropi\invest_import_tasks.ps1
 ```
 
-XML修正時の注意: XMLファイルはUTF-16エンコーディング。PowerShellで編集する場合は  
-`[System.IO.File]::ReadAllText(..., [Text.Encoding]::Unicode)` を使うこと。
+**XMLファイルについて**:
+- 全XMLファイルは**UTF-8エンコーディング**（BOMなし）
+- SIDは `S-1-5-21-2752900438-3444082329-101990108-1001`（tropi ユーザー）
+- `invest_import_tasks.ps1` は UTF-8 で読み込み、`encoding=` 宣言を除去してから登録する
+
+---
+
+## 損益計算の仕組み
+
+### データソース優先順位
+
+```
+1. fills_YYYYMMDD.csv が存在する → 実約定価格 × 実約定数量で計算（備考: "実約定"）
+2. 決済約定がない銘柄              → 「決済未了」として損益=Noneで記録
+3. 新規約定がない銘柄              → 「発注失敗」として損益=Noneで記録
+4. fills_YYYYMMDD.csv がない      → yfinance の始値/終値で理論計算（備考: 空欄）
+```
+
+### 日付の対応関係
+
+| シグナルファイル | 米国日付（ファイル名） | 日本取引日（実際の売買日） |
+|----------------|---------------------|------------------------|
+| signal_YYYYMMDD.csv | 米国前営業日 | 米国日付 + 1営業日 |
+| fills_YYYYMMDD.csv  | 日本取引日  | ファイル名 = 日本取引日 |
+
+`calc_pnl.py` は yfinance で価格取得する際、シグナル日付 + 1営業日（日本取引日）を使用する。
+
+### 重要な計算仕様
+
+- 発注数量: `int(target_value / price / lot) * lot`（0口になる場合は発注しない）
+- target_value: `PORTFOLIO_VALUE × abs(ポジション)` = 300,000 × 0.2 = 60,000円/銘柄
+- 発注間隔: `time.sleep(0.5)` でAPI回数エラー(429)を防止
 
 ---
 
@@ -152,17 +194,17 @@ XML修正時の注意: XMLファイルはUTF-16エンコーディング。PowerS
 - ファイル名は**米国市場の日付**（日本の前営業日）で保存される
 - 例: 日本 04-22 の取引シグナル → `signal_20260421.csv`（前日の米国 04-21 データ）
 - `calc_pnl.py` に渡す日付引数も米国市場日付で指定すること
-- 「今日のシグナルがない」と思ったら前営業日のファイル名を確認すること
+- `fills_YYYYMMDD.csv` のファイル名は**日本取引日**（当日日付）で保存される
 
 ### ログファイルの競合
-- `kabu_autologin.py` / `monitor_agent.py` は `logging.basicConfig(filename=...)` で内部的にファイルを開く
-- `run_daily.bat` で `>> log_autologin.txt 2>&1` を**追加してはいけない**（同一ファイルを二重オープン → PermissionError）
+- `kabu_autologin.py` / `monitor_agent.py` / `fetch_fills.py` は `logging.basicConfig(filename=...)` で内部的にファイルを開く
+- `run_daily.bat` で `>> log_*.txt 2>&1` を**追加してはいけない**（同一ファイルを二重オープン → PermissionError）
 - `daily_signal.py` / `kabu_order.py` は標準出力のみ → bat側の `>> log_*.txt 2>&1` でリダイレクト
 
 ### 管理者権限とGドライブ
 - Windowsでは**管理者権限で実行するとGドライブ（Google Drive）がマップされない**
 - タスクスケジューラのタスク本体はGドライブへアクセスしない（ラッパーbatがsetlocalでパスを解決）
-- 管理者コマンドプロンプトからGドライブのファイルを直接実行する場合は `net use G: \\...` が必要な場合あり
+- タスク登録（`invest_import_tasks.ps1`）はClaude Codeから直接実行可能（管理者権限不要）
 
 ### PowerShellのエンコーディング
 - PowerShell 5.x は CP932 で読むため、PS1ファイルに日本語を含めると parse error になる
@@ -176,7 +218,7 @@ XML修正時の注意: XMLファイルはUTF-16エンコーディング。PowerS
 - REST: `http://localhost:18080/kabusapi/`
 - WebSocket: `ws://localhost:18081/kabusapi/websocket`
 - APIパスワード: `.env_windows` の `KABU_API_PASSWORD`
-- ポートフォリオ金額: `.env_windows` の `PORTFOLIO_VALUE`（現在: 990,000円）
+- ポートフォリオ金額: `.env_windows` の `PORTFOLIO_VALUE`（現在: **300,000円**、縮小運用中）
 
 ### 発注モード
 - **DRY RUN**: `run_daily.bat dry` → シミュレーションのみ、実際の注文なし
@@ -189,7 +231,7 @@ kabuStationのログイン仕様変更に伴い `kabu_autologin.py` を更新済
 **ログインステップ順序（重要）:**
 1. Gmail API初期化
 2. ログイン済み確認（スキップ判定）
-3. kabuStation未起動なら起動
+3. kabuStation起動確認 → 起動中だがAPI使用不可（前回失敗の残骸）なら再起動してから起動
 4. ログインダイアログ待機（最大90秒）
 5. 口座番号をWM_CHARで入力 → Enter×2（これで2FAメール送信される）
 6. GmailからOTPコード取得（最大30秒）、未着の場合はスキップして次へ進む
@@ -224,22 +266,22 @@ KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 
 ## セクターETF対応表（東証）
 
-| ティッカー | セクター名       |
-|------------|------------------|
-| 1617.T     | 食品             |
-| 1618.T     | エネルギー資源   |
-| 1619.T     | 建設・資材       |
-| 1620.T     | 素材・化学       |
-| 1621.T     | 医薬品           |
-| 1622.T     | 自動車・輸送機   |
-| 1623.T     | 鉄鋼・非鉄       |
-| 1624.T     | 機械             |
-| 1625.T     | 電機・精密       |
-| 1626.T     | 情報通信・サービス |
-| 1627.T     | 電力・ガス       |
-| 1628.T     | 運輸・物流       |
-| 1629.T     | 商社・卸売       |
-| 1630.T     | 小売             |
-| 1631.T     | 銀行             |
-| 1632.T     | 金融（除く銀行） |
-| 1633.T     | 不動産           |
+| ティッカー | セクター名       | 備考 |
+|------------|-----------------|------|
+| 1617.T     | 食品             | SHORT非対応（デイトレ売建不可） |
+| 1618.T     | エネルギー資源   | |
+| 1619.T     | 建設・資材       | |
+| 1620.T     | 素材・化学       | SHORT非対応（デイトレ売建不可） |
+| 1621.T     | 医薬品           | |
+| 1622.T     | 自動車・輸送機   | |
+| 1623.T     | 鉄鋼・非鉄       | SHORT非対応（デイトレ売建不可） |
+| 1624.T     | 機械             | |
+| 1625.T     | 電機・精密       | → 代替: 200A.T（日経半導体ETF） |
+| 1626.T     | 情報通信・サービス | |
+| 1627.T     | 電力・ガス       | |
+| 1628.T     | 運輸・物流       | |
+| 1629.T     | 商社・卸売       | → 代替: 8058.T（三菱商事） |
+| 1630.T     | 小売             | |
+| 1631.T     | 銀行             | |
+| 1632.T     | 金融（除く銀行） | |
+| 1633.T     | 不動産           | → 代替: 1343.T（東証REIT指数ETF） |
