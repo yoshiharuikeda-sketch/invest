@@ -25,8 +25,9 @@ for ($i = 0; $i -lt $names.Count; $i++) {
     # Delete existing task
     Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue
 
-    # Import from XML
+    # Import from XML (all files are UTF-8, strip encoding declaration for compatibility)
     $xml    = [System.IO.File]::ReadAllText($xmlPath, [System.Text.Encoding]::UTF8)
+    $xml    = $xml -replace '\s*encoding="[^"]*"', ''
     $result = Register-ScheduledTask -TaskName $name -Xml $xml -Force 2>&1
     if ($?) {
         $msg = "[OK] $name -> $($xmlFiles[$i])"

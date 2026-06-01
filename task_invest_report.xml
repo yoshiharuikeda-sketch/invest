@@ -7,7 +7,7 @@
     </RegistrationInfo>
     <Principals>
         <Principal id="Author">
-            <UserId>S-1-5-21-2752900438-3444082329-1019901008-1001</UserId>
+            <UserId>S-1-5-21-2752900438-3444082329-101990108-1001</UserId>
             <LogonType>InteractiveToken</LogonType>
         </Principal>
     </Principals>
