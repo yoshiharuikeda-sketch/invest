@@ -276,6 +276,83 @@ def _color(v):
     return "#4CAF50" if float(v) >= 0 else "#F44336"
 
 
+def _slip_color(v):
+    """スリッページは負=悪い(赤)、正=良い(緑)"""
+    return "#4CAF50" if float(v) >= 0 else "#F44336"
+
+
+def _build_slippage_html(df_detail: pd.DataFrame, tbl: str) -> str:
+    """スリッページ表を生成（実約定データがある行のみ）"""
+    if df_detail.empty or "スリッページ(円)" not in df_detail.columns:
+        return ""
+    slip_df = df_detail[df_detail["スリッページ(円)"].notna()].copy()
+    if slip_df.empty:
+        return ""
+
+    total_slip = float(slip_df["スリッページ(円)"].sum())
+    s_rows = ""
+    for _, r in slip_df.sort_values(["日付", "名称"]).iterrows():
+        slip = float(r["スリッページ(円)"])
+        s_rows += (
+            f"<tr>{_td(r['日付'])}{_td(r['名称'], align='left')}"
+            f"{_td(r['方向'])}"
+            f"{_td(f\"{float(r['始値']):,.0f}円\")}"
+            f"{_td(f\"{slip:+,.0f}円\", color=_slip_color(slip))}</tr>"
+        )
+    return f"""
+<h3>スリッページ（実約定価格 − yfinance参照価格の影響）</h3>
+<table {tbl}>
+  <tr>{_th("日付")}{_th("銘柄")}{_th("方向")}{_th("実約定始値")}{_th("スリッページ(円)")}</tr>
+  {s_rows}
+</table>
+<p>累計スリッページ: <b style="color:{_slip_color(total_slip)}">{total_slip:+,.0f}円</b>
+&nbsp;（負=理論値より不利、正=有利）</p>"""
+
+
+def build_daily_html(summary: dict, df_detail: pd.DataFrame) -> str:
+    """日次通知メールのHTML"""
+    tbl   = 'style="border-collapse:collapse;width:100%;font-size:13px"'
+    pnl   = float(summary["合計損益(円)"])
+    rate  = float(summary["損益率(%)"])
+    date  = summary["日付"]
+    wl    = summary["勝敗"]
+
+    # 銘柄別明細
+    detail_rows = ""
+    for _, r in df_detail.iterrows():
+        p = r.get("損益(円)")
+        s = r.get("スリッページ(円)")
+        p_str = f"{float(p):+,.0f}円" if pd.notna(p) else "—"
+        s_str = f"{float(s):+,.0f}円" if pd.notna(s) else "—"
+        p_col = _color(p) if pd.notna(p) else "gray"
+        s_col = _slip_color(s) if pd.notna(s) else "gray"
+        detail_rows += (
+            f"<tr>{_td(r['名称'], align='left')}{_td(r['方向'])}"
+            f"{_td(p_str, color=p_col)}{_td(s_str, color=s_col)}"
+            f"{_td(r.get('備考',''))}</tr>"
+        )
+
+    slip_total = df_detail["スリッページ(円)"].sum(skipna=True) if "スリッページ(円)" in df_detail.columns else None
+    slip_line  = (f"<br>スリッページ合計: <b style='color:{_slip_color(slip_total)}'>"
+                  f"{float(slip_total):+,.0f}円</b>"
+                  if slip_total is not None and not pd.isna(slip_total) else "")
+
+    return f"""<html><body style="font-family:sans-serif;max-width:700px;margin:auto;padding:20px">
+<h2 style="color:#1565C0">日次損益レポート — {date}</h2>
+<p style="font-size:18px">
+  <b style="color:{_color(pnl)}">{pnl:+,.0f}円</b>
+  &nbsp;（{rate:+.3f}%）&nbsp;{wl}
+  {slip_line}
+</p>
+<h3>銘柄別明細</h3>
+<table {tbl}>
+  <tr>{_th("銘柄")}{_th("方向")}{_th("損益(円)")}{_th("スリッページ(円)")}{_th("備考")}</tr>
+  {detail_rows}
+</table>
+<p style="color:gray;font-size:11px;margin-top:20px">自動送信 — 日米業種リードラグ投資戦略</p>
+</body></html>"""
+
+
 def build_report_html(label: str, df_hist: pd.DataFrame,
                       df_detail: pd.DataFrame) -> str:
     df = df_hist.copy()
@@ -344,6 +421,8 @@ def build_report_html(label: str, df_hist: pd.DataFrame,
   {s_rows}
 </table>"""
 
+    slip_html = _build_slippage_html(df_detail, tbl)
+
     return f"""<html><body style="font-family:sans-serif;max-width:820px;margin:auto;padding:20px">
 <h2 style="color:#1565C0">{label}</h2>
 <h3>サマリー</h3>{summary_html}
@@ -351,6 +430,7 @@ def build_report_html(label: str, df_hist: pd.DataFrame,
 <img src="cid:chart" style="max-width:100%">
 <h3>日次損益一覧</h3>{daily_html}
 {sector_html}
+{slip_html}
 <p style="color:gray;font-size:11px;margin-top:20px">自動送信 — 日米業種リードラグ投資戦略</p>
 </body></html>"""
 
@@ -386,11 +466,30 @@ def main():
     today_str = today.strftime("%Y-%m-%d")
     log.info(f"=== report_agent 開始: {today_str} ===")
 
-    # ── 日次P&L保存 ──
+    # ── Gmail初期化（日次・週次・月次で共用）──
+    service = None
+    if not args.dry:
+        try:
+            service = _get_gmail_service()
+        except Exception as e:
+            log.error(f"Gmail初期化失敗: {e}")
+
+    # ── 日次P&L保存 + 日次通知メール ──
     summary = calc_and_save_today()
     if summary:
         print(f"[P&L] {summary['日付']}  {summary['合計損益(円)']:+,}円"
               f"  ({summary['損益率(%)']}%)  {summary['勝敗']}")
+        if service:
+            try:
+                today_detail = _load_detail(summary["日付"], summary["日付"])
+                pnl   = int(summary["合計損益(円)"])
+                wl    = summary["勝敗"]
+                subj  = f"【日次】{summary['日付']} {pnl:+,}円 {wl}"
+                html  = build_daily_html(summary, today_detail)
+                _send_email(service, subj, html)
+                log.info(f"日次通知送信: {subj}")
+            except Exception as e:
+                log.error(f"日次通知送信失敗: {e}")
 
     do_weekly  = args.weekly  or _is_friday(today)
     do_monthly = args.monthly or _is_last_trading_day_of_month(today)
@@ -399,13 +498,9 @@ def main():
         log.info("週次・月次レポート対象日ではありません")
         return
 
-    service = None
-    if not args.dry:
-        try:
-            service = _get_gmail_service()
-        except Exception as e:
-            log.error(f"Gmail初期化失敗: {e}")
-            return
+    if not service and not args.dry:
+        log.error("Gmail未初期化のため週次・月次レポートをスキップ")
+        return
 
     def _send_report(label: str, subject: str, start: str, end: str):
         df_hist   = _load_history(start, end)

@@ -171,7 +171,7 @@ def calc_day_pnl(signal_df: pd.DataFrame, ohlc: pd.DataFrame,
                     "方向": row["方向"].strip(),
                     "始値": None, "終値": None,
                     "OC騰落率(%)": None, "配分金額(円)": None,
-                    "損益(円)": None, "備考": "発注失敗",
+                    "損益(円)": None, "スリッページ(円)": None, "備考": "発注失敗",
                 })
                 continue
 
@@ -187,7 +187,7 @@ def calc_day_pnl(signal_df: pd.DataFrame, ohlc: pd.DataFrame,
                     "始値": round(open_, 2), "終値": None,
                     "OC騰落率(%)": None,
                     "配分金額(円)": int(actual_qty * open_),
-                    "損益(円)": None, "備考": "決済未了",
+                    "損益(円)": None, "スリッページ(円)": None, "備考": "決済未了",
                 })
                 continue
 
@@ -197,16 +197,26 @@ def calc_day_pnl(signal_df: pd.DataFrame, ohlc: pd.DataFrame,
             actual_alloc = actual_qty * open_
             pnl         = np.sign(pos) * actual_qty * (close_ - open_)
 
+            # スリッページ = 実損益 - 理論損益（yfinance価格 × 実約定数量）
+            slip_pnl = None
+            if ticker in ohlc.index:
+                yf_open  = ohlc.loc[ticker, "Open"]
+                yf_close = ohlc.loc[ticker, "Close"]
+                if not pd.isna(yf_open) and not pd.isna(yf_close) and yf_open > 0:
+                    theoretical = np.sign(pos) * actual_qty * (yf_close - yf_open)
+                    slip_pnl = round(pnl - theoretical)
+
             rows.append({
-                "Ticker":       ticker,
-                "名称":         row["名称"],
-                "方向":         row["方向"].strip(),
-                "始値":         round(open_, 2),
-                "終値":         round(close_, 2),
-                "OC騰落率(%)":  round(oc_ret * 100, 3),
-                "配分金額(円)":  int(actual_alloc),
-                "損益(円)":     round(pnl),
-                "備考":         source,
+                "Ticker":        ticker,
+                "名称":          row["名称"],
+                "方向":          row["方向"].strip(),
+                "始値":          round(open_, 2),
+                "終値":          round(close_, 2),
+                "OC騰落率(%)":   round(oc_ret * 100, 3),
+                "配分金額(円)":   int(actual_alloc),
+                "損益(円)":      round(pnl),
+                "スリッページ(円)": slip_pnl,
+                "備考":          source,
             })
             continue
 
@@ -217,7 +227,7 @@ def calc_day_pnl(signal_df: pd.DataFrame, ohlc: pd.DataFrame,
                 "方向": row["方向"].strip(),
                 "始値": None, "終値": None,
                 "OC騰落率(%)": None, "配分金額(円)": None,
-                "損益(円)": None, "備考": "価格データなし",
+                "損益(円)": None, "スリッページ(円)": None, "備考": "価格データなし",
             })
             continue
 
@@ -230,24 +240,25 @@ def calc_day_pnl(signal_df: pd.DataFrame, ohlc: pd.DataFrame,
                 "方向": row["方向"].strip(),
                 "始値": open_, "終値": close_,
                 "OC騰落率(%)": None, "配分金額(円)": None,
-                "損益(円)": None, "備考": "価格異常",
+                "損益(円)": None, "スリッページ(円)": None, "備考": "価格異常",
             })
             continue
 
         oc_ret = (close_ - open_) / open_
         alloc  = weight * portfolio
-        pnl    = np.sign(pos) * alloc * oc_ret   # FIX: pos→sign(pos)
+        pnl    = np.sign(pos) * alloc * oc_ret
 
         rows.append({
-            "Ticker":       ticker,
-            "名称":         row["名称"],
-            "方向":         row["方向"].strip(),
-            "始値":         round(open_, 2),
-            "終値":         round(close_, 2),
-            "OC騰落率(%)":  round(oc_ret * 100, 3),
-            "配分金額(円)":  int(alloc),
-            "損益(円)":     round(pnl),
-            "備考":         "",
+            "Ticker":        ticker,
+            "名称":          row["名称"],
+            "方向":          row["方向"].strip(),
+            "始値":          round(open_, 2),
+            "終値":          round(close_, 2),
+            "OC騰落率(%)":   round(oc_ret * 100, 3),
+            "配分金額(円)":   int(alloc),
+            "損益(円)":      round(pnl),
+            "スリッページ(円)": None,
+            "備考":          "",
         })
 
     return pd.DataFrame(rows)
@@ -296,8 +307,8 @@ def process_one_day(csv_path: str) -> dict | None:
     print(f"\n{'='*60}")
     print(f"  {date.strftime('%Y-%m-%d')}  ポートフォリオ: {PORTFOLIO_VALUE:,}円  [{src_label}]")
     print(f"{'='*60}")
-    print(detail[["名称", "方向", "始値", "終値",
-                  "OC騰落率(%)", "損益(円)", "備考"]].to_string(index=False))
+    cols = ["名称", "方向", "始値", "終値", "OC騰落率(%)", "損益(円)", "スリッページ(円)", "備考"]
+    print(detail[[c for c in cols if c in detail.columns]].to_string(index=False))
     print(f"{'─'*60}")
     print(f"  合計損益: {total_pnl:+,.0f} 円"
           f"  ({total_pnl / PORTFOLIO_VALUE * 100:+.3f}%)")
