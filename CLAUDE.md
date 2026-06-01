@@ -221,9 +221,9 @@ powershell -ExecutionPolicy Bypass -File C:\Users\tropi\invest_import_tasks.ps1
 - ポートフォリオ金額: `.env_windows` の `PORTFOLIO_VALUE`（現在: **300,000円**、縮小運用中）
 
 ### 発注モード
-- **DRY RUN**: `run_daily.bat dry` → シミュレーションのみ、実際の注文なし
-- **本番（現在）**: `run_daily.bat open/close` → `--execute` フラグ付きで実発注
-- 現在のステータス: 本番稼働中（2026-05-19より実発注開始）
+- **現在のステータス: 本番稼働中**（2026-05-19より実発注開始）
+- タスクスケジューラは `--execute` フラグ付きで自動実発注する
+- `run_daily.bat dry` はデバッグ・動作確認専用（実際の注文は発生しない）
 
 ### kabuStation自動ログインフロー（2026-05 新仕様）
 kabuStationのログイン仕様変更に伴い `kabu_autologin.py` を更新済み（2026-04-28〜05-22）。
