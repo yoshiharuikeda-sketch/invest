@@ -179,23 +179,20 @@ def calc_day_pnl(signal_df: pd.DataFrame, ohlc: pd.DataFrame,
             actual_qty = open_fill["qty"]
 
             close_fill = fills.get(close_key)
-            if close_fill is not None:
-                close_ = close_fill["price"]
-                source = "実約定"
-            else:
-                # 決済未約定 → yfinance 終値で代替
-                close_ = ohlc.loc[ticker, "Close"] if ticker in ohlc.index else None
-                if close_ is None or pd.isna(close_):
-                    rows.append({
-                        "Ticker": ticker, "名称": row["名称"],
-                        "方向": row["方向"].strip(),
-                        "始値": round(open_, 2), "終値": None,
-                        "OC騰落率(%)": None, "配分金額(円)": None,
-                        "損益(円)": None, "備考": "決済未了",
-                    })
-                    continue
-                source = "実約定(終値理論)"
+            if close_fill is None:
+                # 決済未約定 → 未実現損益のためP&L計上しない
+                rows.append({
+                    "Ticker": ticker, "名称": row["名称"],
+                    "方向": row["方向"].strip(),
+                    "始値": round(open_, 2), "終値": None,
+                    "OC騰落率(%)": None,
+                    "配分金額(円)": int(actual_qty * open_),
+                    "損益(円)": None, "備考": "決済未了",
+                })
+                continue
 
+            close_  = close_fill["price"]
+            source  = "実約定"
             oc_ret      = (close_ - open_) / open_
             actual_alloc = actual_qty * open_
             pnl         = np.sign(pos) * actual_qty * (close_ - open_)
