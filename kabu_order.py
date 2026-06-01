@@ -354,7 +354,7 @@ def calc_order_qty(
     lot = LOT_SIZE.get(code, 1)
     target_value = portfolio_value * abs(weight)
     qty = int(target_value / price / lot) * lot
-    return max(qty, lot) if target_value > 0 else 0
+    return qty
 
 
 # =====================================================================

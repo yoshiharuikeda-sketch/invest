@@ -111,7 +111,7 @@ def fetch_ohlc(tickers: list, date: datetime) -> pd.DataFrame:
 def load_fills(japan_date: pd.Timestamp) -> tuple[dict, bool]:
     """
     fills_YYYYMMDD.csv（日本取引日）を読み込み、約定データを返す。
-    キー: (Symbol, CashMargin, Side) → 約定価格
+    キー: (Symbol, CashMargin, Side) → {"price": float, "qty": int}
     ファイルがなければ ({}, False) を返す。
     """
     fills_path = os.path.join(
@@ -124,7 +124,7 @@ def load_fills(japan_date: pd.Timestamp) -> tuple[dict, bool]:
     df = pd.read_csv(fills_path, dtype={"Symbol": str, "Side": str})
     for _, row in df.iterrows():
         key = (row["Symbol"], int(row["CashMargin"]), row["Side"])
-        result[key] = float(row["Price"])
+        result[key] = {"price": float(row["Price"]), "qty": int(row["Qty"])}
     return result, True
 
 
@@ -161,10 +161,10 @@ def calc_day_pnl(signal_df: pd.DataFrame, ohlc: pd.DataFrame,
             open_key  = (symbol, 2, "1")   # 信用新規売り
             close_key = (symbol, 3, "2")   # 信用返済買い
 
-        # --- 始値・終値を決定 ---
+        # --- 始値・終値・損益を決定 ---
         if fills_available:
-            open_ = fills.get(open_key)
-            if open_ is None:
+            open_fill = fills.get(open_key)
+            if open_fill is None:
                 # 新規発注が約定していない → 実績なし
                 rows.append({
                     "Ticker": ticker, "名称": row["名称"],
@@ -175,13 +175,16 @@ def calc_day_pnl(signal_df: pd.DataFrame, ohlc: pd.DataFrame,
                 })
                 continue
 
-            close_ = fills.get(close_key)
-            if close_ is not None:
+            open_  = open_fill["price"]
+            actual_qty = open_fill["qty"]
+
+            close_fill = fills.get(close_key)
+            if close_fill is not None:
+                close_ = close_fill["price"]
                 source = "実約定"
             else:
-                # 決済が約定していない → yfinance 終値で代替
+                # 決済未約定 → yfinance 終値で代替
                 close_ = ohlc.loc[ticker, "Close"] if ticker in ohlc.index else None
-                source = "実約定(終値理論)" if close_ is not None else None
                 if close_ is None or pd.isna(close_):
                     rows.append({
                         "Ticker": ticker, "名称": row["名称"],
@@ -191,20 +194,38 @@ def calc_day_pnl(signal_df: pd.DataFrame, ohlc: pd.DataFrame,
                         "損益(円)": None, "備考": "決済未了",
                     })
                     continue
-        else:
-            # fills データなし → yfinance を使用
-            if ticker not in ohlc.index:
-                rows.append({
-                    "Ticker": ticker, "名称": row["名称"],
-                    "方向": row["方向"].strip(),
-                    "始値": None, "終値": None,
-                    "OC騰落率(%)": None, "配分金額(円)": None,
-                    "損益(円)": None, "備考": "価格データなし",
-                })
-                continue
-            open_  = ohlc.loc[ticker, "Open"]
-            close_ = ohlc.loc[ticker, "Close"]
-            source = ""
+                source = "実約定(終値理論)"
+
+            oc_ret      = (close_ - open_) / open_
+            actual_alloc = actual_qty * open_
+            pnl         = np.sign(pos) * actual_qty * (close_ - open_)
+
+            rows.append({
+                "Ticker":       ticker,
+                "名称":         row["名称"],
+                "方向":         row["方向"].strip(),
+                "始値":         round(open_, 2),
+                "終値":         round(close_, 2),
+                "OC騰落率(%)":  round(oc_ret * 100, 3),
+                "配分金額(円)":  int(actual_alloc),
+                "損益(円)":     round(pnl),
+                "備考":         source,
+            })
+            continue
+
+        # fills データなし → yfinance を使用
+        if ticker not in ohlc.index:
+            rows.append({
+                "Ticker": ticker, "名称": row["名称"],
+                "方向": row["方向"].strip(),
+                "始値": None, "終値": None,
+                "OC騰落率(%)": None, "配分金額(円)": None,
+                "損益(円)": None, "備考": "価格データなし",
+            })
+            continue
+
+        open_  = ohlc.loc[ticker, "Open"]
+        close_ = ohlc.loc[ticker, "Close"]
 
         if pd.isna(open_) or pd.isna(close_) or open_ == 0:
             rows.append({
@@ -218,7 +239,7 @@ def calc_day_pnl(signal_df: pd.DataFrame, ohlc: pd.DataFrame,
 
         oc_ret = (close_ - open_) / open_
         alloc  = weight * portfolio
-        pnl    = pos * alloc * oc_ret
+        pnl    = np.sign(pos) * alloc * oc_ret   # FIX: pos→sign(pos)
 
         rows.append({
             "Ticker":       ticker,
@@ -229,7 +250,7 @@ def calc_day_pnl(signal_df: pd.DataFrame, ohlc: pd.DataFrame,
             "OC騰落率(%)":  round(oc_ret * 100, 3),
             "配分金額(円)":  int(alloc),
             "損益(円)":     round(pnl),
-            "備考":         source,
+            "備考":         "",
         })
 
     return pd.DataFrame(rows)
