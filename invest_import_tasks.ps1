@@ -13,6 +13,7 @@ $xmlFiles = @(
     'C:\Users\tropi\task_invest_signal.xml',
     'C:\Users\tropi\task_invest_open.xml',
     'C:\Users\tropi\task_invest_close.xml',
+    'C:\Users\tropi\task_invest_fills.xml',
     'C:\Users\tropi\task_invest_shutdown.xml',
     'C:\Users\tropi\task_invest_report.xml'
 )

@@ -111,7 +111,7 @@ def calc_and_save_today() -> dict | None:
     """最新の未記録シグナルからP&Lを計算して保存する"""
     sys.path.insert(0, str(DIR))
     from calc_pnl import (
-        load_signal, fetch_ohlc, calc_day_pnl,
+        load_signal, fetch_ohlc, calc_day_pnl, load_fills,
         ORDER_TICKER_MAP, SHORT_SKIP_TICKERS, PORTFOLIO_VALUE,
     )
 
@@ -131,12 +131,17 @@ def calc_and_save_today() -> dict | None:
         lambda t: ORDER_TICKER_MAP.get(t, t)
     )
 
+    import pandas as pd
+    japan_date = pd.Timestamp(date) + pd.offsets.BDay(1)
+    fills, fills_available = load_fills(japan_date)
+
     ohlc = fetch_ohlc(signal_df["Ticker"].tolist(), date)
-    if ohlc.empty:
+    if ohlc.empty and not fills_available:
         log.warning(f"{date.strftime('%Y-%m-%d')}: 価格データ取得失敗")
         return None
 
-    detail_df = calc_day_pnl(signal_df, ohlc, PORTFOLIO_VALUE)
+    detail_df = calc_day_pnl(signal_df, ohlc, PORTFOLIO_VALUE,
+                              fills=fills, fills_available=fills_available)
     total_pnl = float(detail_df["損益(円)"].sum(skipna=True))
     date_str  = date.strftime("%Y-%m-%d")
 
