@@ -216,7 +216,7 @@ kabuStationのログイン仕様変更に伴い `kabu_autologin.py` を更新済
 
 ```
 KABU_API_PASSWORD=<APIパスワード>
-PORTFOLIO_VALUE=990000
+PORTFOLIO_VALUE=300000
 KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 ```
 
