@@ -292,12 +292,14 @@ def _build_slippage_html(df_detail: pd.DataFrame, tbl: str) -> str:
     total_slip = float(slip_df["スリッページ(円)"].sum())
     s_rows = ""
     for _, r in slip_df.sort_values(["日付", "名称"]).iterrows():
-        slip = float(r["スリッページ(円)"])
+        slip      = float(r["スリッページ(円)"])
+        open_str  = f"{float(r['始値']):,.0f}円"
+        slip_str  = f"{slip:+,.0f}円"
         s_rows += (
             f"<tr>{_td(r['日付'])}{_td(r['名称'], align='left')}"
             f"{_td(r['方向'])}"
-            f"{_td(f\"{float(r['始値']):,.0f}円\")}"
-            f"{_td(f\"{slip:+,.0f}円\", color=_slip_color(slip))}</tr>"
+            f"{_td(open_str)}"
+            f"{_td(slip_str, color=_slip_color(slip))}</tr>"
         )
     return f"""
 <h3>スリッページ（実約定価格 − yfinance参照価格の影響）</h3>
