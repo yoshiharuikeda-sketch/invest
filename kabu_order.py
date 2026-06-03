@@ -75,7 +75,8 @@ API_PASSWORD    = _load_api_password()
 ORDER_TYPE        = 1    # 1: 成行, 2: 指値
 FRONT_ORDER_TYPE  = 10   # 10: 成行（寄付）, 16: 引成（後場）
 CASH_MARGIN       = 2    # 1: 現物, 2: 信用新規, 3: 信用返済
-MARGIN_TRADE_TYPE = 3    # 1: 制度信用, 2: 一般信用（長期）, 3: 一般信用（デイトレ）
+MARGIN_TRADE_TYPE       = 3    # 1: 制度信用, 2: 一般信用（長期）, 3: 一般信用（デイトレ）
+MARGIN_TRADE_TYPE_SHORT = 1    # SHORTはデイトレ在庫が枯渇しやすいため制度信用を使用
 SIDE_BUY          = "2"  # 買い
 SIDE_SELL         = "1"  # 売り
 
@@ -519,9 +520,12 @@ def run_orders(
             qty = calc_order_qty(ticker, abs(row["ポジション"]), portfolio_value, token)
             if qty == 0:
                 continue
+        # SHORT新規は制度信用（在庫不足でデイトレが使えない日に対応）
+        short_mtt = MARGIN_TRADE_TYPE_SHORT if open_order else MARGIN_TRADE_TYPE
         result = send_order(
             token, code, short_side, qty,
             cash_margin=short_cm,
+            margin_trade_type=short_mtt,
             front_order_type=front_type,
             close_position_order=short_cpord,
             dry_run=dry_run
