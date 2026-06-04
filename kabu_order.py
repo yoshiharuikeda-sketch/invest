@@ -520,8 +520,8 @@ def run_orders(
             qty = calc_order_qty(ticker, abs(row["ポジション"]), portfolio_value, token)
             if qty == 0:
                 continue
-        # SHORT新規は制度信用（在庫不足でデイトレが使えない日に対応）
-        short_mtt = MARGIN_TRADE_TYPE_SHORT if open_order else MARGIN_TRADE_TYPE
+        # SHORT新規・返済ともに制度信用（開建玉と同じ MarginTradeType で返済）
+        short_mtt = MARGIN_TRADE_TYPE_SHORT
         result = send_order(
             token, code, short_side, qty,
             cash_margin=short_cm,
