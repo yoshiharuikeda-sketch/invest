@@ -1,0 +1,17 @@
+[2026-06-01 22:39:34] === fetch_fills 開始: 2026-06-01 ===
+[2026-06-01 22:39:34] トークン取得成功
+[2026-06-01 22:39:34] 注文照会: 33件
+[2026-06-01 22:39:34] 約定データ: 12件
+[2026-06-01 22:39:34] 保存完了: fills_20260601.csv  12件
+[2026-06-02 15:32:01] === fetch_fills 開始: 2026-06-02 ===
+[2026-06-02 15:32:05] エラー: HTTPConnectionPool(host='localhost', port=18080): Max retries exceeded with url: /kabusapi/token (Caused by NewConnectionError("HTTPConnection(host='localhost', port=18080): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[2026-06-03 15:32:01] === fetch_fills 開始: 2026-06-03 ===
+[2026-06-03 15:32:01] トークン取得成功
+[2026-06-03 15:32:01] 注文照会: 26件
+[2026-06-03 15:32:01] 約定データ: 4件
+[2026-06-03 15:32:01] 保存完了: fills_20260603.csv  4件
+[2026-06-04 15:32:01] === fetch_fills 開始: 2026-06-04 ===
+[2026-06-04 15:32:01] トークン取得成功
+[2026-06-04 15:32:01] 注文照会: 26件
+[2026-06-04 15:32:01] 約定データ: 12件
+[2026-06-04 15:32:01] 保存完了: fills_20260604.csv  12件
