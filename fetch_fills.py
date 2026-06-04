@@ -1,6 +1,7 @@
 """
 kabuStation(R) API 約定照会スクリプト
-引成決済後（15:32頃）に実行し、今日の全約定価格を fills_YYYYMMDD.csv に保存する。
+引成決済後（15:32頃）に実行し、今日の全約定価格と東証始値・終値を
+fills_YYYYMMDD.csv に保存する。
 """
 
 import sys
@@ -16,6 +17,7 @@ if sys.stdout.encoding != "utf-8":
 SCRIPT_DIR = Path(__file__).parent
 LOG_FILE   = SCRIPT_DIR / "log_fills.txt"
 BASE_URL   = "http://localhost:18080/kabusapi"
+EXCHANGE   = 1   # 東証
 
 logging.basicConfig(
     filename=str(LOG_FILE), level=logging.INFO,
@@ -51,6 +53,21 @@ def _get_fill_price(order: dict) -> float | None:
         if price and float(price) > 0:
             return float(price)
     return None
+
+
+def _get_board(token: str, symbol: str) -> dict | None:
+    """銘柄の板情報（始値・現在値含む）を取得"""
+    try:
+        resp = requests.get(
+            f"{BASE_URL}/board/{symbol}@{EXCHANGE}",
+            headers={"X-API-KEY": token},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        log.warning(f"  板情報取得失敗 {symbol}: {e}")
+        return None
 
 
 def fetch_and_save():
@@ -103,7 +120,28 @@ def fetch_and_save():
         print("  ⚠️  約定データが取得できませんでした")
         return
 
-    fieldnames = ["OrderId", "Symbol", "Side", "CashMargin", "Qty", "Price"]
+    # ---- 板情報から始値・現在値（引け後≒終値）を取得 ----
+    unique_symbols = sorted({r["Symbol"] for r in fills})
+    market_prices = {}   # symbol → (open, close)
+    for sym in unique_symbols:
+        board = _get_board(token, sym)
+        if board:
+            mo = board.get("OpeningPrice") or 0
+            mc = board.get("CurrentPrice") or 0
+            market_prices[sym] = (float(mo) if mo else None,
+                                  float(mc) if mc else None)
+        else:
+            market_prices[sym] = (None, None)
+
+    log.info(f"板情報取得: {len(unique_symbols)}銘柄")
+
+    for r in fills:
+        mo, mc = market_prices.get(r["Symbol"], (None, None))
+        r["MarketOpen"]  = mo
+        r["MarketClose"] = mc
+
+    fieldnames = ["OrderId", "Symbol", "Side", "CashMargin", "Qty",
+                  "Price", "MarketOpen", "MarketClose"]
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -115,7 +153,12 @@ def fetch_and_save():
     for r in fills:
         side_str = "買い" if r["Side"] == "2" else "売り"
         cm_str   = "新規" if r["CashMargin"] == 2 else "返済"
-        print(f"    [{r['Symbol']}] {side_str} {cm_str} {r['Qty']}口 @ {r['Price']:,.0f}円")
+        mo = r.get("MarketOpen")
+        mc = r.get("MarketClose")
+        mo_str = f"{mo:,.0f}" if mo else "—"
+        mc_str = f"{mc:,.0f}" if mc else "—"
+        print(f"    [{r['Symbol']}] {side_str} {cm_str} {r['Qty']}口 "
+              f"@ {r['Price']:,.0f}円  市場OP:{mo_str} / CL:{mc_str}")
 
 
 def main():

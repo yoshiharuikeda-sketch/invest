@@ -35,6 +35,7 @@ from googleapiclient.discovery import build
 DIR              = Path(__file__).parent
 PNL_HISTORY_CSV  = DIR / "pnl_history.csv"
 PNL_DETAIL_CSV   = DIR / "pnl_detail_history.csv"
+TRADE_XLSX       = DIR / "trade_history.xlsx"
 LOG_FILE         = DIR / "log_report.txt"
 TOKEN_FILE       = DIR / "token_monitor.json"
 CREDENTIALS_FILE = DIR / "credentials.json"
@@ -176,7 +177,115 @@ def calc_and_save_today() -> dict | None:
     updated.to_csv(PNL_DETAIL_CSV, index=False, encoding="utf-8-sig")
 
     log.info(f"P&L保存: {date_str}  {total_pnl:+,.0f}円 ({summary['損益率(%)']}%)")
+
+    # ─ Excel 出力 ─
+    try:
+        _save_to_excel()
+    except Exception as e:
+        log.error(f"Excel保存失敗: {e}")
+
     return summary
+
+
+def _save_to_excel():
+    """pnl_history.csv / pnl_detail_history.csv の最新内容を Excel に書き出す。
+    既存ファイルがあれば上書き（重複日付は内部CSVで既に排除済み）。"""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        log.warning("openpyxl 未インストール → Excel保存スキップ")
+        return
+
+    if not PNL_HISTORY_CSV.exists():
+        return
+
+    df_hist   = pd.read_csv(PNL_HISTORY_CSV, encoding="utf-8-sig")
+    df_detail = (pd.read_csv(PNL_DETAIL_CSV, encoding="utf-8-sig")
+                 if PNL_DETAIL_CSV.exists() else pd.DataFrame())
+
+    wb = Workbook()
+
+    # 共通スタイル
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="1565C0")
+    green_font  = Font(color="2E7D32", bold=True)
+    red_font    = Font(color="C62828", bold=True)
+    gray_font   = Font(color="9E9E9E")
+    center      = Alignment(horizontal="center", vertical="center")
+    left_align  = Alignment(horizontal="left", vertical="center")
+    right_align = Alignment(horizontal="right", vertical="center")
+    thin_side   = Side(border_style="thin", color="DDDDDD")
+    border      = Border(left=thin_side, right=thin_side,
+                         top=thin_side, bottom=thin_side)
+
+    def _write_sheet(ws, df, money_cols, pct_cols=None):
+        pct_cols = pct_cols or []
+        cols = list(df.columns)
+
+        for ci, col in enumerate(cols, start=1):
+            c = ws.cell(row=1, column=ci, value=col)
+            c.font, c.fill, c.alignment, c.border = header_font, header_fill, center, border
+
+        for ri, row in enumerate(df.itertuples(index=False), start=2):
+            for ci, (col, val) in enumerate(zip(cols, row), start=1):
+                cell = ws.cell(row=ri, column=ci)
+                if pd.isna(val):
+                    cell.value = "—"
+                    cell.font  = gray_font
+                    cell.alignment = center
+                elif col in money_cols:
+                    try:
+                        v = float(val)
+                        cell.value = v
+                        cell.number_format = '+#,##0"円";-#,##0"円";0"円"'
+                        cell.font = green_font if v >= 0 else red_font
+                        cell.alignment = right_align
+                    except (ValueError, TypeError):
+                        cell.value = val
+                        cell.alignment = right_align
+                elif col in pct_cols:
+                    try:
+                        v = float(val)
+                        cell.value = v / 100.0
+                        cell.number_format = '+0.000%;-0.000%;0.000%'
+                        cell.font = green_font if v >= 0 else red_font
+                        cell.alignment = right_align
+                    except (ValueError, TypeError):
+                        cell.value = val
+                        cell.alignment = right_align
+                else:
+                    cell.value = val
+                    cell.alignment = left_align if isinstance(val, str) and len(str(val)) > 4 else center
+                cell.border = border
+
+        # 列幅自動調整
+        for ci, col in enumerate(cols, start=1):
+            max_len = max(
+                [len(str(col))] +
+                [len(str(v)) for v in df[col].head(200).fillna("")]
+            )
+            ws.column_dimensions[get_column_letter(ci)].width = min(max_len + 4, 32)
+
+        ws.freeze_panes = "A2"
+
+    # シート1: 日次サマリー
+    ws1 = wb.active
+    ws1.title = "日次サマリー"
+    _write_sheet(ws1, df_hist,
+                 money_cols={"合計損益(円)"},
+                 pct_cols={"損益率(%)"})
+
+    # シート2: 銘柄別明細
+    if not df_detail.empty:
+        ws2 = wb.create_sheet("銘柄別明細")
+        _write_sheet(ws2, df_detail,
+                     money_cols={"損益(円)", "スリッページ(円)", "配分金額(円)"},
+                     pct_cols={"OC騰落率(%)"})
+
+    wb.save(TRADE_XLSX)
+    log.info(f"Excel保存: {TRADE_XLSX.name} ({len(df_hist)}日 / {len(df_detail)}明細)")
 
 
 def _write_csv(path: Path, fieldnames: list, rows: list):

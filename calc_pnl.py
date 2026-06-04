@@ -124,7 +124,14 @@ def load_fills(japan_date: pd.Timestamp) -> tuple[dict, bool]:
     df = pd.read_csv(fills_path, dtype={"Symbol": str, "Side": str})
     for _, row in df.iterrows():
         key = (row["Symbol"], int(row["CashMargin"]), row["Side"])
-        result[key] = {"price": float(row["Price"]), "qty": int(row["Qty"])}
+        mo  = row.get("MarketOpen")
+        mc  = row.get("MarketClose")
+        result[key] = {
+            "price":        float(row["Price"]),
+            "qty":          int(row["Qty"]),
+            "market_open":  float(mo) if pd.notna(mo) else None,
+            "market_close": float(mc) if pd.notna(mc) else None,
+        }
     return result, True
 
 
@@ -197,14 +204,21 @@ def calc_day_pnl(signal_df: pd.DataFrame, ohlc: pd.DataFrame,
             actual_alloc = actual_qty * open_
             pnl         = np.sign(pos) * actual_qty * (close_ - open_)
 
-            # スリッページ = 実損益 - 理論損益（yfinance価格 × 実約定数量）
-            slip_pnl = None
-            if ticker in ohlc.index:
+            # スリッページ = 実約定 vs 市場価格（kabuStation board 優先、yfinance フォールバック）
+            ref_open  = open_fill.get("market_open")
+            ref_close = close_fill.get("market_close")
+            if (ref_open is None or ref_close is None) and ticker in ohlc.index:
                 yf_open  = ohlc.loc[ticker, "Open"]
                 yf_close = ohlc.loc[ticker, "Close"]
-                if not pd.isna(yf_open) and not pd.isna(yf_close) and yf_open > 0:
-                    theoretical = np.sign(pos) * actual_qty * (yf_close - yf_open)
-                    slip_pnl = round(pnl - theoretical)
+                if ref_open is None and not pd.isna(yf_open):
+                    ref_open = float(yf_open)
+                if ref_close is None and not pd.isna(yf_close):
+                    ref_close = float(yf_close)
+
+            slip_pnl = None
+            if ref_open is not None and ref_close is not None and ref_open > 0:
+                theoretical = np.sign(pos) * actual_qty * (ref_close - ref_open)
+                slip_pnl = round(pnl - theoretical)
 
             rows.append({
                 "Ticker":        ticker,
