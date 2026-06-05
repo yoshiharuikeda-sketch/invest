@@ -510,38 +510,18 @@ def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC)
     return None
 
 
-def _try_invoke_skip(hwnd: int, attempts: int = 8, interval: float = 1.5) -> bool:
-    """UIA の InvokePattern で「パスキーなしで続行」系ボタンを直接押す（確実方式）。
-    CEFの描画完了タイミングに依存して1回では取りこぼすため複数回リトライする。
-    モニターオフ/スクリーンロック中でもCOM経由で機能する。"""
-    from pywinauto import Application
-    patterns = [".*パスキーなしで続行.*", ".*パスキーなし.*", ".*スキップ.*",
-                ".*今はしない.*", ".*あとで.*", ".*後で.*"]
-    for i in range(attempts):
-        try:
-            app = Application(backend="uia").connect(handle=hwnd)
-            win = app.window(handle=hwnd)
-            for pat in patterns:
-                try:
-                    el = win.child_window(title_re=pat)
-                    if el.exists(timeout=1):
-                        el.invoke()
-                        log.info(f"UIA: 「{pat}」をInvoke完了（試行{i+1}/{attempts}）")
-                        return True
-                except Exception:
-                    continue
-        except Exception as e:
-            log.info(f"UIA接続/検索失敗（試行{i+1}/{attempts}）: {e}")
-        time.sleep(interval)
-    return False
-
-
 def handle_passkey_dialog(hwnd: int) -> bool:
     """
     パスキー選択画面で「パスキーなしで続行」を選択する。
-    1. UIA Invoke（確実方式）を複数回リトライ ← 最優先・最も安定
-    2. 失敗時: 「パスキーを作成」にSetFocus → Tab×1 → Enter
+    1. 「パスキーなしで続行」をUIAで直接Invoke（最優先）
+    2. UIA失敗時は「パスキーを作成」にSetFocus → Tab×1 → Enter
     3. 最終フォールバック: オレンジボタン検出 → ホバー → Tab×1 → Enter
+
+    ※ 2026-06-06: 「UIA Invokeを多数回リトライ」案は、リトライ中にパスキー
+       ウィンドウのハンドルが無効化し、従来有効だった高速フォールバックが
+       ウィンドウ消失後に走って失敗する回帰を起こしたため撤回（実績ある高速版に復帰）。
+       併せて「パスキーウィンドウが既に消えている＝ログイン進行済み」を True 扱いに
+       するガードを追加（最終的な成否は do_login のAPI確認が判定する）。
     """
     try:
         cef_hwnd = [None]
@@ -557,22 +537,67 @@ def handle_passkey_dialog(hwnd: int) -> bool:
         target = cef_hwnd[0] or hwnd
         log.info(f"パスキー選択ウィンドウ: {win32gui.GetClassName(target)} (hwnd={target})")
 
-        # 1. 確実方式: UIA Invoke を複数回リトライ（最優先）
-        if _try_invoke_skip(hwnd):
-            return True
-        log.warning("UIA Invokeが全試行で失敗 → フォールバック方式へ")
+        invoked = False
 
-        # 2. 「パスキーを作成」にSetFocus → WM_SETFOCUS → Tab×1 → Enter
         try:
             from pywinauto import Application
             app = Application(backend="uia").connect(handle=hwnd)
             win = app.window(handle=hwnd)
-            btn = win.child_window(title="パスキーを作成", control_type="Button")
-            btn.set_focus()
-            log.info("UIA: 「パスキーを作成」にSetFocus完了")
-            time.sleep(0.5)
-            # Win32レベルのキーボードフォーカスをCEFに確立してからキー送信
-            win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
+
+            # 1. 「パスキーなしで続行」ボタンをUIAで直接Invoke（最優先）
+            try:
+                btn_skip = win.child_window(title_re=".*パスキーなし.*")
+                if btn_skip.exists(timeout=2):
+                    btn_skip.invoke()
+                    log.info("UIA: 「パスキーなしで続行」をInvoke完了")
+                    invoked = True
+            except Exception as e:
+                log.info(f"「パスキーなしで続行」Invoke失敗: {e}")
+
+            # 2. 「パスキーを作成」にSetFocus → WM_SETFOCUS → Tab×1 → Enter
+            if not invoked:
+                btn = win.child_window(title="パスキーを作成", control_type="Button")
+                btn.set_focus()
+                log.info("UIA: 「パスキーを作成」にSetFocus完了")
+                time.sleep(0.5)
+                # Win32レベルのキーボードフォーカスをCEFに確立してからキー送信
+                win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
+                time.sleep(0.3)
+                win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
+                time.sleep(0.1)
+                win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
+                time.sleep(0.3)
+                win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
+                time.sleep(0.1)
+                win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
+                log.info("「パスキーを作成」フォーカス → Tab×1 → Enter 完了")
+
+        except Exception as e:
+            log.info(f"UIA 失敗（続行）: {e}")
+
+        # 3. UIA完全失敗時: オレンジボタン検出 → WM_MOUSEMOVEホバー → Tab×1 → Enter
+        if not invoked:
+            if not win32gui.IsWindow(hwnd):
+                log.info("パスキーウィンドウ消失（ログイン進行済みとみなしAPI確認へ）")
+                return True
+            win_rect = win32gui.GetWindowRect(hwnd)
+            win_left, win_top, win_right, win_bottom = win_rect
+            orange_x, orange_y = _scan_orange_button(
+                y_min=win_top + 300,
+                y_max=win_bottom - 50,
+                x_min=win_left,
+                x_max=win_right,
+            )
+            if orange_x is not None:
+                client_pt = win32gui.ScreenToClient(target, (orange_x, orange_y))
+                cx, cy = client_pt
+                log.info(f"オレンジボタン検出: screen({orange_x}, {orange_y}) → client({cx}, {cy})")
+            else:
+                cx, cy = 580, 420
+                log.warning(f"オレンジボタン未検出 → 固定座標: client({cx}, {cy})")
+            lparam = win32api.MAKELONG(cx, cy)
+            win32api.PostMessage(target, win32con.WM_MOUSEMOVE, 0, lparam)
+            log.info(f"WM_MOUSEMOVEホバー: client({cx}, {cy})")
             time.sleep(0.3)
             win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
             time.sleep(0.1)
@@ -581,42 +606,18 @@ def handle_passkey_dialog(hwnd: int) -> bool:
             win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
             time.sleep(0.1)
             win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
-            log.info("「パスキーを作成」フォーカス → Tab×1 → Enter 完了")
-            return True
-        except Exception as e:
-            log.info(f"UIA フォーカス方式 失敗（続行）: {e}")
-
-        # 3. 最終フォールバック: オレンジボタン検出 → WM_MOUSEMOVEホバー → Tab×1 → Enter
-        win_rect = win32gui.GetWindowRect(hwnd)
-        win_left, win_top, win_right, win_bottom = win_rect
-        orange_x, orange_y = _scan_orange_button(
-            y_min=win_top + 300,
-            y_max=win_bottom - 50,
-            x_min=win_left,
-            x_max=win_right,
-        )
-        if orange_x is not None:
-            client_pt = win32gui.ScreenToClient(target, (orange_x, orange_y))
-            cx, cy = client_pt
-            log.info(f"オレンジボタン検出: screen({orange_x}, {orange_y}) → client({cx}, {cy})")
-        else:
-            cx, cy = 580, 420
-            log.warning(f"オレンジボタン未検出 → 固定座標: client({cx}, {cy})")
-        lparam = win32api.MAKELONG(cx, cy)
-        win32api.PostMessage(target, win32con.WM_MOUSEMOVE, 0, lparam)
-        log.info(f"WM_MOUSEMOVEホバー: client({cx}, {cy})")
-        time.sleep(0.3)
-        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
-        time.sleep(0.1)
-        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
-        time.sleep(0.3)
-        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
-        time.sleep(0.1)
-        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
-        log.info("フォールバック: Tab×1 → Enter 完了")
+            log.info("フォールバック: Tab×1 → Enter 完了")
         return True
 
     except Exception as e:
+        # ウィンドウが既に消えている = ログインが先に進んだ可能性 → API確認に委ねる
+        try:
+            gone = not win32gui.IsWindow(hwnd)
+        except Exception:
+            gone = True
+        if gone:
+            log.info(f"パスキーウィンドウ消失（ログイン進行済みとみなしAPI確認へ）: {e}")
+            return True
         log.error(f"パスキー選択画面操作失敗: {e}")
         return False
 
