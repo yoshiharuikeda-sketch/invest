@@ -510,12 +510,38 @@ def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC)
     return None
 
 
+def _try_invoke_skip(hwnd: int, attempts: int = 8, interval: float = 1.5) -> bool:
+    """UIA の InvokePattern で「パスキーなしで続行」系ボタンを直接押す（確実方式）。
+    CEFの描画完了タイミングに依存して1回では取りこぼすため複数回リトライする。
+    モニターオフ/スクリーンロック中でもCOM経由で機能する。"""
+    from pywinauto import Application
+    patterns = [".*パスキーなしで続行.*", ".*パスキーなし.*", ".*スキップ.*",
+                ".*今はしない.*", ".*あとで.*", ".*後で.*"]
+    for i in range(attempts):
+        try:
+            app = Application(backend="uia").connect(handle=hwnd)
+            win = app.window(handle=hwnd)
+            for pat in patterns:
+                try:
+                    el = win.child_window(title_re=pat)
+                    if el.exists(timeout=1):
+                        el.invoke()
+                        log.info(f"UIA: 「{pat}」をInvoke完了（試行{i+1}/{attempts}）")
+                        return True
+                except Exception:
+                    continue
+        except Exception as e:
+            log.info(f"UIA接続/検索失敗（試行{i+1}/{attempts}）: {e}")
+        time.sleep(interval)
+    return False
+
+
 def handle_passkey_dialog(hwnd: int) -> bool:
     """
     パスキー選択画面で「パスキーなしで続行」を選択する。
-    1. UIA テキスト検索で「パスキーを作成」要素を探しSetFocusでフォーカス（クリックしない）
-    2. UIA失敗時はオレンジボタンをスクリーンショット検出してWM_MOUSEMOVEでホバー
-    3. フォーカス確定後 Tab×1 → Enter で「パスキーなしで続行」を決定する
+    1. UIA Invoke（確実方式）を複数回リトライ ← 最優先・最も安定
+    2. 失敗時: 「パスキーを作成」にSetFocus → Tab×1 → Enter
+    3. 最終フォールバック: オレンジボタン検出 → ホバー → Tab×1 → Enter
     """
     try:
         cef_hwnd = [None]
@@ -531,64 +557,22 @@ def handle_passkey_dialog(hwnd: int) -> bool:
         target = cef_hwnd[0] or hwnd
         log.info(f"パスキー選択ウィンドウ: {win32gui.GetClassName(target)} (hwnd={target})")
 
-        invoked = False
+        # 1. 確実方式: UIA Invoke を複数回リトライ（最優先）
+        if _try_invoke_skip(hwnd):
+            return True
+        log.warning("UIA Invokeが全試行で失敗 → フォールバック方式へ")
 
+        # 2. 「パスキーを作成」にSetFocus → WM_SETFOCUS → Tab×1 → Enter
         try:
             from pywinauto import Application
             app = Application(backend="uia").connect(handle=hwnd)
             win = app.window(handle=hwnd)
-
-            # 1. 「パスキーなしで続行」ボタンをUIAで直接Invoke（最優先）
-            try:
-                btn_skip = win.child_window(title_re=".*パスキーなし.*")
-                if btn_skip.exists(timeout=2):
-                    btn_skip.invoke()
-                    log.info("UIA: 「パスキーなしで続行」をInvoke完了")
-                    invoked = True
-            except Exception as e:
-                log.info(f"「パスキーなしで続行」Invoke失敗: {e}")
-
-            # 2. 「パスキーを作成」にSetFocus → WM_SETFOCUS → Tab×1 → Enter
-            if not invoked:
-                btn = win.child_window(title="パスキーを作成", control_type="Button")
-                btn.set_focus()
-                log.info("UIA: 「パスキーを作成」にSetFocus完了")
-                time.sleep(0.5)
-                # Win32レベルのキーボードフォーカスをCEFに確立してからキー送信
-                win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
-                time.sleep(0.3)
-                win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
-                time.sleep(0.1)
-                win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
-                time.sleep(0.3)
-                win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
-                time.sleep(0.1)
-                win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
-                log.info("「パスキーを作成」フォーカス → Tab×1 → Enter 完了")
-
-        except Exception as e:
-            log.info(f"UIA 失敗（続行）: {e}")
-
-        # 3. UIA完全失敗時: オレンジボタン検出 → WM_MOUSEMOVEホバー → Tab×1 → Enter
-        if not invoked:
-            win_rect = win32gui.GetWindowRect(hwnd)
-            win_left, win_top, win_right, win_bottom = win_rect
-            orange_x, orange_y = _scan_orange_button(
-                y_min=win_top + 300,
-                y_max=win_bottom - 50,
-                x_min=win_left,
-                x_max=win_right,
-            )
-            if orange_x is not None:
-                client_pt = win32gui.ScreenToClient(target, (orange_x, orange_y))
-                cx, cy = client_pt
-                log.info(f"オレンジボタン検出: screen({orange_x}, {orange_y}) → client({cx}, {cy})")
-            else:
-                cx, cy = 580, 420
-                log.warning(f"オレンジボタン未検出 → 固定座標: client({cx}, {cy})")
-            lparam = win32api.MAKELONG(cx, cy)
-            win32api.PostMessage(target, win32con.WM_MOUSEMOVE, 0, lparam)
-            log.info(f"WM_MOUSEMOVEホバー: client({cx}, {cy})")
+            btn = win.child_window(title="パスキーを作成", control_type="Button")
+            btn.set_focus()
+            log.info("UIA: 「パスキーを作成」にSetFocus完了")
+            time.sleep(0.5)
+            # Win32レベルのキーボードフォーカスをCEFに確立してからキー送信
+            win32api.PostMessage(target, win32con.WM_SETFOCUS, 0, 0)
             time.sleep(0.3)
             win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
             time.sleep(0.1)
@@ -597,7 +581,39 @@ def handle_passkey_dialog(hwnd: int) -> bool:
             win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
             time.sleep(0.1)
             win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
-            log.info("フォールバック: Tab×1 → Enter 完了")
+            log.info("「パスキーを作成」フォーカス → Tab×1 → Enter 完了")
+            return True
+        except Exception as e:
+            log.info(f"UIA フォーカス方式 失敗（続行）: {e}")
+
+        # 3. 最終フォールバック: オレンジボタン検出 → WM_MOUSEMOVEホバー → Tab×1 → Enter
+        win_rect = win32gui.GetWindowRect(hwnd)
+        win_left, win_top, win_right, win_bottom = win_rect
+        orange_x, orange_y = _scan_orange_button(
+            y_min=win_top + 300,
+            y_max=win_bottom - 50,
+            x_min=win_left,
+            x_max=win_right,
+        )
+        if orange_x is not None:
+            client_pt = win32gui.ScreenToClient(target, (orange_x, orange_y))
+            cx, cy = client_pt
+            log.info(f"オレンジボタン検出: screen({orange_x}, {orange_y}) → client({cx}, {cy})")
+        else:
+            cx, cy = 580, 420
+            log.warning(f"オレンジボタン未検出 → 固定座標: client({cx}, {cy})")
+        lparam = win32api.MAKELONG(cx, cy)
+        win32api.PostMessage(target, win32con.WM_MOUSEMOVE, 0, lparam)
+        log.info(f"WM_MOUSEMOVEホバー: client({cx}, {cy})")
+        time.sleep(0.3)
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_TAB, 0x000F0001)
+        time.sleep(0.1)
+        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_TAB, 0xC00F0001)
+        time.sleep(0.3)
+        win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
+        time.sleep(0.1)
+        win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
+        log.info("フォールバック: Tab×1 → Enter 完了")
         return True
 
     except Exception as e:
@@ -677,10 +693,12 @@ def _allow_sleep():
     log.info("スリープ抑制: 解除")
 
 
-def do_login() -> bool:
-    """kabuステーションを起動してログインする"""
+def do_login(force: bool = False) -> bool:
+    """kabuステーションを起動してログインする。
+    force=True のときは APIトークンが取れても（取引セッション失効対策で）
+    既存を終了してフル再ログインする。"""
     log.info("=" * 60)
-    log.info("kabuステーション 自動ログイン開始")
+    log.info(f"kabuステーション 自動ログイン開始{'（force再ログイン）' if force else ''}")
     log.info("=" * 60)
 
     # スリープ抑制を有効化（タスク実行中にPCが再スリープするのを防ぐ）
@@ -695,15 +713,18 @@ def do_login() -> bool:
             log.error(f"Gmail API初期化失敗: {e}")
             return False
 
-        # 2. 既にログイン済みなら終了
+        # 2. 既にログイン済みなら終了（force時は強制再ログイン）
         if is_kabustation_running() and is_api_ready():
-            log.info("kabuステーションは既にログイン済みです（APIトークン取得成功）")
-            return True
+            if not force:
+                log.info("kabuステーションは既にログイン済みです（APIトークン取得成功）")
+                return True
+            log.info("force指定 → ログイン済みだが強制的に再ログインします")
 
         # 3. 起動確認・必要に応じて再起動
         if is_kabustation_running():
-            # 起動中だがAPIが使えない = 前回ログイン失敗の残骸 → 再起動してクリーンな状態にする
-            log.info("kabuステーション起動中だがAPIが使えない → 再起動します")
+            # force、または起動中だがAPIが使えない残骸 → 再起動してクリーンな状態にする
+            reason = "force再ログイン" if force else "API使用不可（前回ログイン失敗の残骸）"
+            log.info(f"kabuステーション再起動します（{reason}）")
             if not shutdown_kabustation():
                 log.error("kabuステーション終了失敗 → 多重起動を防ぐためログイン中断")
                 return False

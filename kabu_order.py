@@ -278,7 +278,13 @@ def send_order(
 
     if resp.status_code != 200:
         print(f"    ❌ 発注エラー: {resp.status_code} {resp.text}")
-        return None
+        code = None
+        try:
+            code = resp.json().get("Code")
+        except Exception:
+            pass
+        # None ではなくエラー内容を含む dict を返す（Code:10016等の検知・リトライ用）
+        return {"Result": -1, "Code": code, "Message": resp.text, "_status": resp.status_code}
 
     result = resp.json()
     if result.get("Result") == 0:
@@ -356,6 +362,89 @@ def calc_order_qty(
     target_value = portfolio_value * abs(weight)
     qty = int(target_value / price / lot) * lot
     return qty
+
+
+# =====================================================================
+# 5.5 リカバリ・通知ヘルパー（取引セッション失効対策）
+# =====================================================================
+
+def _is_session_expired(result) -> bool:
+    """注文結果が「取引ログインセッション失効」(Code:10016)かを判定"""
+    return isinstance(result, dict) and result.get("Code") == 10016
+
+
+def _is_order_failed(result) -> bool:
+    """注文結果が失敗（成功=Result:0 以外）かを判定"""
+    return not (isinstance(result, dict) and result.get("Result") == 0)
+
+
+def _force_relogin() -> bool:
+    """kabu_autologin を呼び出して kabuステーションへ強制再ログインする。
+    GUI依存のため遅延importする（失敗しても発注フローは継続）。"""
+    try:
+        import kabu_autologin
+        print("  🔄 kabuステーションへ強制再ログイン中（最大2〜3分）...")
+        ok = kabu_autologin.do_login(force=True)
+        print(f"  {'✅ 再ログイン成功' if ok else '❌ 再ログイン失敗'}")
+        return ok
+    except Exception as e:
+        print(f"  ❌ 再ログイン呼び出し失敗: {e}")
+        return False
+
+
+def _send_gmail(subject: str, body: str) -> None:
+    """monitor_agent と同じ token_monitor.json を使って自分宛にメール送信する。"""
+    try:
+        import base64
+        from email.mime.text import MIMEText
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        from googleapiclient.discovery import build
+
+        token_file = os.path.join(DATA_DIR, "token_monitor.json")
+        scopes = ["https://www.googleapis.com/auth/gmail.readonly",
+                  "https://www.googleapis.com/auth/gmail.send"]
+        if not os.path.exists(token_file):
+            print("  ⚠️  token_monitor.json が無いためアラート送信をスキップ")
+            return
+        creds = Credentials.from_authorized_user_file(token_file, scopes)
+        if (not creds.valid) and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        service = build("gmail", "v1", credentials=creds)
+        me = service.users().getProfile(userId="me").execute()["emailAddress"]
+        msg = MIMEText(body, "plain", "utf-8")
+        msg["to"] = me
+        msg["subject"] = subject
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        print(f"  📧 アラート送信: {subject} → {me}")
+    except Exception as e:
+        print(f"  ⚠️  アラート送信失敗: {e}")
+
+
+def _send_failure_alert(failed_results: list, open_order: bool) -> None:
+    """実発注で失敗が残った注文を即時メール通知する（当日中の手動対応用）。"""
+    phase = "寄付き発注" if open_order else "引成決済"
+    lines = [
+        f"{phase}で {len(failed_results)}件の発注失敗が発生しました（実発注モード）。",
+        f"時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        "",
+        "失敗した注文:",
+    ]
+    for r in failed_results:
+        res = r.get("Result")
+        code = res.get("Code") if isinstance(res, dict) else None
+        msg = res.get("Message") if isinstance(res, dict) else res
+        lines.append(f"  [{r['Ticker']}] {r['Side']} {r['Qty']}口  Code={code}  {str(msg)[:120]}")
+    if not open_order:
+        lines += [
+            "",
+            "⚠️ 決済失敗のため建玉が持ち越される可能性があります。",
+            "制度信用SHORTは自動決済されません。kabuステーション建玉画面で手動返済してください。",
+            "（確認コマンド: python -X utf8 check_positions.py）",
+        ]
+    subject = f"[投資戦略] ⚠️ {phase}失敗 {len(failed_results)}件 要手動対応"
+    _send_gmail(subject, "\n".join(lines))
 
 
 # =====================================================================
@@ -487,16 +576,16 @@ def run_orders(
             qty = calc_order_qty(ticker, row["ポジション"], portfolio_value, token)
             if qty == 0:
                 continue
-        result = send_order(
-            token, code, long_side, qty,
+        spec = dict(
+            symbol=code, side=long_side, qty=qty,
             cash_margin=long_cm,
             front_order_type=front_type,
             close_position_order=long_cpord,
-            dry_run=dry_run
         )
+        result = send_order(token, dry_run=dry_run, **spec)
         order_results.append({
             "Ticker": ticker, "Side": "BUY" if long_side == SIDE_BUY else "SELL",
-            "Qty": qty, "Result": result
+            "Qty": qty, "Result": result, "spec": spec,
         })
         time.sleep(0.5)
 
@@ -522,19 +611,40 @@ def run_orders(
                 continue
         # SHORT新規・返済ともに制度信用（開建玉と同じ MarginTradeType で返済）
         short_mtt = MARGIN_TRADE_TYPE_SHORT
-        result = send_order(
-            token, code, short_side, qty,
+        spec = dict(
+            symbol=code, side=short_side, qty=qty,
             cash_margin=short_cm,
             margin_trade_type=short_mtt,
             front_order_type=front_type,
             close_position_order=short_cpord,
-            dry_run=dry_run
         )
+        result = send_order(token, dry_run=dry_run, **spec)
         order_results.append({
             "Ticker": ticker, "Side": "BUY" if short_side == SIDE_BUY else "SELL",
-            "Qty": qty, "Result": result
+            "Qty": qty, "Result": result, "spec": spec,
         })
         time.sleep(0.5)
+
+    # ---- 決済時：取引セッション失効(Code:10016)を検知したら再ログインしてリトライ ----
+    if not open_order and not dry_run:
+        expired = [r for r in order_results if _is_session_expired(r["Result"])]
+        if expired:
+            print(f"\n  ⚠️  取引ログインセッション失効(Code:10016)を {len(expired)}件 検出 → リカバリ開始")
+            if _force_relogin():
+                try:
+                    token = get_token(force_refresh=True)
+                except Exception as e:
+                    print(f"  ⚠️  トークン再取得失敗: {e}")
+                print("  🔁 未決済分を再発注します")
+                for r in expired:
+                    spec = r.get("spec")
+                    if not spec:
+                        continue
+                    new_res = send_order(token, dry_run=False, **spec)
+                    r["Result"] = new_res
+                    time.sleep(0.5)
+            else:
+                print("  ❌ 再ログイン失敗 → 自動リカバリ不可。手動返済が必要です。")
 
     # ---- サマリー ----
     print(f"\n【5. 発注サマリー】")
@@ -543,8 +653,14 @@ def run_orders(
         print("  ⚠️  DRY RUN モード: 実際の発注は行われていません")
         print("  実発注するには --execute オプションを付けて実行してください")
     else:
-        success = sum(1 for r in order_results if r["Result"] and r["Result"].get("Result") == 0)
+        success = sum(1 for r in order_results
+                      if isinstance(r["Result"], dict) and r["Result"].get("Result") == 0)
         print(f"  成功: {success}件 / 失敗: {len(order_results)-success}件")
+
+        # ---- 失敗が残る場合は即時アラート（当日中の手動対応用）----
+        failed = [r for r in order_results if _is_order_failed(r["Result"])]
+        if failed:
+            _send_failure_alert(failed, open_order)
 
     print("\n=== 完了 ===")
     return order_results
