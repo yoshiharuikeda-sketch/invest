@@ -9,6 +9,7 @@ IF "%1"=="shutdown" python "G:\My Drive\Claude Code\Invest\kabu_autologin.py" --
 IF "%1"=="signal" python "G:\My Drive\Claude Code\Invest\daily_signal.py" >> "G:\My Drive\Claude Code\Invest\log_signal.txt" 2>&1 
 IF "%1"=="open"   python "G:\My Drive\Claude Code\Invest\kabu_order.py" --execute --value %PORTFOLIO_VALUE% >> "G:\My Drive\Claude Code\Invest\log_order.txt" 2>&1
 IF "%1"=="close"  python "G:\My Drive\Claude Code\Invest\kabu_order.py" --execute --close --value %PORTFOLIO_VALUE% >> "G:\My Drive\Claude Code\Invest\log_order.txt" 2>&1
+IF "%1"=="close_remaining" python "G:\My Drive\Claude Code\Invest\close_all_positions.py" --execute >> "G:\My Drive\Claude Code\Invest\log_order.txt" 2>&1
 IF "%1"=="dry"     python "G:\My Drive\Claude Code\Invest\kabu_order.py" --value %PORTFOLIO_VALUE%
 IF "%1"=="fills"   python "G:\My Drive\Claude Code\Invest\fetch_fills.py"
 IF "%1"=="monitor" python "G:\My Drive\Claude Code\Invest\monitor_agent.py"
