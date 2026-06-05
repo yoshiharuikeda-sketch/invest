@@ -71,19 +71,45 @@ G:\My Drive\Claude Code\Invest\
 
 ## 日次スケジュール（タスクスケジューラ）
 
-| 時刻  | タスク名 | 処理内容 | WakeToRun |
-|-------|---------|---------|:----:|
-| **08:41** | 投資戦略_自動ログイン（1回目） | kabuStation起動 + 2FA + API認証（VBS非表示起動） | true |
-| **08:45** | 投資戦略_自動ログイン（2回目） | 1回目失敗時のリトライ（成功時は即終了） | true |
-| 08:50 | 投資戦略_シグナル計算 | daily_signal.py → signal_YYYYMMDD.csv | - |
-| 09:00 | 投資戦略_寄付き発注 | kabu_order.py --execute（本番発注） | - |
-| 〜kabuStation起動したまま待機〜 | | | |
-| 15:25 | 投資戦略_引成決済 | kabu_order.py --execute --close（本番決済） | - |
-| **15:32** | 投資戦略_約定照会 | fetch_fills.py → fills_YYYYMMDD.csv（実約定価格＋板情報） | **true** |
-| **15:35** | 投資戦略_損益レポート | report_agent.py → Gmail通知 + Excel更新 | **true** |
-| **15:40** | 投資戦略_自動終了 | kabuStation終了（VBS非表示起動） | true |
+| 時刻  | タスク名 | 処理内容 | WakeToRun | StartWhenAvail |
+|-------|---------|---------|:----:|:----:|
+| 08:45 | `invest_login`（英語名・補助） | 自動ログイン（1回目） | true | - |
+| **08:47** | 投資戦略_自動ログイン | kabuStation起動 + 2FA + API認証（VBS非表示起動）| true | - |
+| 08:50 | 投資戦略_シグナル計算 | daily_signal.py → signal_YYYYMMDD.csv | - | - |
+| 09:00 | 投資戦略_寄付き発注 | kabu_order.py --execute（本番発注） | - | - |
+| 09:05 | `invest_monitor_morning`（英語名・補助） | monitor_agent.py（ログ監視→Gmail） | - | - |
+| **09:10** | `invest_morning_shutdown`（英語名・補助） | kabuStation終了（昼間アイドル中の常駐解放） | - | - |
+| 〜昼間は kabuStation 停止〜 | | | | |
+| **15:10** | `invest_afternoon_login`（英語名・補助） | 引け前に再ログイン（決済用の新セッション確保） | true | - |
+| 15:25 | 投資戦略_引成決済 | kabu_order.py --execute --close（本番決済） | - | - |
+| **15:32** | 投資戦略_約定照会 | fetch_fills.py → fills_YYYYMMDD.csv（実約定価格＋板情報） | **true** | - |
+| 15:32 | `invest_monitor_evening`（英語名・補助） | monitor_agent.py（ログ監視→Gmail） | - | - |
+| **15:35** | 投資戦略_損益レポート | report_agent.py → Gmail通知 + Excel更新 | **true** | - |
+| **15:40** | 投資戦略_自動終了 | kabuStation終了（VBS非表示起動） | true | **true** |
 
 **WakeToRun=true** 設定により PC スリープ中でも自動的に復帰してタスク実行される。
+
+### 補助タスク（英語名）の役割と注意
+
+正規の日本語名7タスクとは別に、英語名の補助タスクが5本ある（`invest_import_tasks.ps1` の管理対象外＝手動登録。変更には管理者権限が必要）。
+
+- **`invest_morning_shutdown`（09:10）+ `invest_afternoon_login`（15:10）**: 寄付き後〜引け前の長いアイドル中に kabuStation のログインセッションが失効するのを避けるため、いったん終了して引け前に再ログインする設計。ただし2026-06-05時点で再ログイン後も15:25決済が `Code:10016`（ログイン認証期限切れ）で失敗した実績があり、対策として完全には機能していない（要改善）。
+- **`invest_monitor_morning`（09:05）/ `invest_monitor_evening`（15:32）**: monitor_agent.py によるログ監視→Gmail通知。
+- **`invest_login`（08:45）**: 自動ログインの1回目（08:47の日本語名タスクと二段構え）。
+
+### 【重要】自動終了タスク（15:40）の堅牢化（2026-06-06）
+
+15:40の `投資戦略_自動終了` が定刻に不発で、金曜にkabuStationが週末持ち越しになる事象が発生（土曜は翌朝のログインタスクが無く残骸が始末されないため表面化）。真因はスリープ中の復帰起動失敗＋取りこぼし時の追っかけ実行なし。対策として `task_invest_shutdown.xml` を以下に変更:
+
+- `StartWhenAvailable`: false → **true**（定刻に動けなくても次回PC起床時に必ず実行）
+- `DisallowStartIfOnBatteries` / `StopIfGoingOnBatteries`: true → **false**（UPS誤認時の保険。本機はデスクトップ常時AC電源）
+- `WakeToRun`: true 維持
+
+**タスク変更には管理者権限が必要**（Claude Code/通常セッションからは `Access is denied 0x80070005`）。再登録は管理者PowerShellで:
+```
+powershell -ExecutionPolicy Bypass -File "C:\Users\tropi\invest_fix_shutdown_task.ps1"
+```
+テストタスク掃除も同様に管理者で: `invest_cleanup_test_tasks.ps1`
 
 **タスク登録手順**（管理者権限不要 — Claude Codeから直接実行可能）:
 1. `invest_sync_tasks.bat` を実行（ps1・task_names.txt・全XMLを `C:\Users\tropi\` にコピー）
