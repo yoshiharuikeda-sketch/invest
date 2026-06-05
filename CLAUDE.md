@@ -80,7 +80,7 @@ G:\My Drive\Claude Code\Invest\
 | 09:05 | `invest_monitor_morning`（英語名・補助） | monitor_agent.py（ログ監視→Gmail） | - | - |
 | **09:10** | `invest_morning_shutdown`（英語名・補助） | kabuStation終了（昼間アイドル中の常駐解放） | - | - |
 | 〜昼間は kabuStation 停止〜 | | | | |
-| **15:10** | `invest_afternoon_login`（英語名・補助） | 引け前に再ログイン（決済用の新セッション確保） | true | - |
+| **15:20** | `invest_afternoon_login`（英語名・補助） | 引け前に再ログイン（決済用の新セッション確保）。2026-06-06に15:10→15:20へ前倒し（金曜型Code:10016対策） | true | - |
 | 15:25 | 投資戦略_引成決済 | kabu_order.py --execute --close（本番決済） | - | - |
 | **15:32** | 投資戦略_約定照会 | fetch_fills.py → fills_YYYYMMDD.csv（実約定価格＋板情報） | **true** | - |
 | 15:32 | `invest_monitor_evening`（英語名・補助） | monitor_agent.py（ログ監視→Gmail） | - | - |
@@ -93,7 +93,9 @@ G:\My Drive\Claude Code\Invest\
 
 正規の日本語名7タスクとは別に、英語名の補助タスクが5本ある（`invest_import_tasks.ps1` の管理対象外＝手動登録。変更には管理者権限が必要）。
 
-- **`invest_morning_shutdown`（09:10）+ `invest_afternoon_login`（15:10）**: 寄付き後〜引け前の長いアイドル中に kabuStation のログインセッションが失効するのを避けるため、いったん終了して引け前に再ログインする設計。ただし2026-06-05時点で再ログイン後も15:25決済が `Code:10016`（ログイン認証期限切れ）で失敗した実績があり、対策として完全には機能していない（要改善）。
+- **`invest_morning_shutdown`（09:10）+ `invest_afternoon_login`（15:20）**: 寄付き後〜引け前の長いアイドル中に kabuStation のログインセッションが失効するのを避けるため、いったん終了して引け前に再ログインする設計。
+  - **金曜型 Code:10016 対策（2026-06-06）**: 2026-06-05に再ログイン(15:10)後も15:25決済が `Code:10016`（取引ログインセッション失効）で全件失敗。①APIトークン（読み取り用）は再取得できても、②発注に必要な取引ログインセッションが15分弱で失効していたのが原因（木曜は同タイミングで成功＝常に致命的ではないがセッションが早く死ぬ日がある）。対策として再ログインを **15:10→15:20** に前倒しし、決済までの経過を約14分→約4分に短縮。`task_invest_afternoon_login.xml` 参照。
+  - **残課題**: 15:20でも失効する可能性は残る。より確実にするには、(a) 15:10のパスキー処理がUIA確実方式でなくフォールバック（固定座標）に落ちる場合があるので確実方式に固定する、(b) kabu_order.py の決済で `Code:10016` 検知時に再ログイン→リトライ、(c) 決済失敗時に即時Gmail通知して当日中に手動返済できるようにする、等。
 - **`invest_monitor_morning`（09:05）/ `invest_monitor_evening`（15:32）**: monitor_agent.py によるログ監視→Gmail通知。
 - **`invest_login`（08:45）**: 自動ログインの1回目（08:47の日本語名タスクと二段構え）。
 
