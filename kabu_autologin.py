@@ -76,7 +76,7 @@ STARTUP_WAIT_SEC    = 120   # 起動からAPIが使えるまでの最大待ち�
 LOGIN_WAIT_SEC      = 90    # ログインダイアログ検出の最大待ち秒数
 AUTH_WAIT_SEC       = 120   # 2FAメール到着の最大待ち秒数
 AUTH_CHECK_INTERVAL = 4     # 2FAメール確認間隔（秒）
-SHUTDOWN_WAIT_SEC   = 15    # WM_CLOSE後に強制終了するまでの待ち秒数
+SHUTDOWN_WAIT_SEC   = 5     # WM_CLOSE/「はい」確定後、強制終了に移るまでの待ち秒数（旧15秒のムダ待ちを短縮）
 PASSKEY_WAIT_SEC    = 30    # パスキー選択ウィンドウの最大待ち秒数
 
 # ログ
@@ -115,11 +115,127 @@ def launch_kabustation() -> bool:
     return True
 
 
+def _confirm_exit_dialog(main_hwnd: int, timeout_sec: int = 8) -> bool:
+    """WM_CLOSE後に出る終了確認ポップアップ（「終了しますか？」はい/いいえ・既定=はい）
+    を「はい」で確定して正常終了させる。スクリーンロック/モニターオフ中でも効くよう
+    PostMessage/UIA で操作する。
+
+    検出は厳密に行う（端末など無関係な窓の誤検出を防ぐ）:
+      ① main_hwnd が所有する有効なポップアップ（GW_ENABLEDPOPUP＝モーダル確認窓）
+      ② ①が無ければ、同一プロセス(PID)かつ子に「はい」を持つ可視窓
+    """
+    import win32process
+    try:
+        _, main_pid = win32process.GetWindowThreadProcessId(main_hwnd)
+    except Exception:
+        main_pid = None
+
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        dlg = None
+
+        # ① main_hwnd 所有の有効なポップアップ（モーダル確認窓）
+        try:
+            popup = win32gui.GetWindow(main_hwnd, win32con.GW_ENABLEDPOPUP)
+            if popup and popup != main_hwnd and win32gui.IsWindowVisible(popup):
+                dlg = popup
+        except Exception:
+            pass
+
+        # ② 同一プロセス(PID)の WinForms 確認窓（端末等は別PIDなので除外される）
+        if not dlg and main_pid is not None:
+            found = [None]
+            def _cb(hwnd, _):
+                if found[0] or hwnd == main_hwnd or not win32gui.IsWindowVisible(hwnd):
+                    return True
+                try:
+                    _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                except Exception:
+                    return True
+                if pid == main_pid and "WindowsForms10.Window" in win32gui.GetClassName(hwnd):
+                    found[0] = hwnd
+                return True
+            try:
+                win32gui.EnumWindows(_cb, None)
+            except Exception:
+                pass
+            dlg = found[0]
+
+        if dlg:
+            log.info(f"終了確認ダイアログ検出: hwnd={dlg} "
+                     f"class={win32gui.GetClassName(dlg)} '{win32gui.GetWindowText(dlg)}'")
+            # 子ウィンドウ列挙（診断 + ボタン特定）
+            children = []
+            def _enumc(ch, _):
+                try:
+                    children.append((ch, win32gui.GetClassName(ch), win32gui.GetWindowText(ch)))
+                except Exception:
+                    pass
+                return True
+            try:
+                win32gui.EnumChildWindows(dlg, _enumc, None)
+            except Exception:
+                pass
+            for ch, cls, txt in children:
+                log.info(f"  子: hwnd={ch} class={cls} text='{txt}'")
+
+            # 1) 「はい」を含む子ボタンに BM_CLICK
+            yes = next((ch for ch, cls, txt in children if "はい" in txt), None)
+            if yes:
+                win32api.PostMessage(yes, 0x00F5, 0, 0)  # BM_CLICK
+                log.info(f"終了確認: 「はい」にBM_CLICK hwnd={yes}")
+                return True
+
+            # 2) UIAで「はい」ボタンをInvoke
+            try:
+                from pywinauto import Application
+                w = Application(backend="uia").connect(handle=dlg).window(handle=dlg)
+                for pat in (".*はい.*", ".*OK.*"):
+                    try:
+                        btn = w.child_window(title_re=pat, control_type="Button")
+                        if btn.exists(timeout=1):
+                            btn.invoke()
+                            log.info(f"終了確認: 「はい」をInvoke ({pat})")
+                            return True
+                    except Exception:
+                        continue
+            except Exception as e:
+                log.info(f"終了確認UIA失敗: {e}")
+
+            # 3) フォールバック: PostMessageでEnter送出（ロック安全・フォーカスを奪わない・既定=はい）
+            #    ※ 実機検証(2026-06-06)では、この終了ダイアログのボタンは windowless 描画で
+            #      BM_CLICK/UIA/Enter のいずれでも閉じず、結局 taskkill になった。
+            #      そのため確実な高速化は SHUTDOWN_WAIT_SEC 短縮（15→5秒）で担保し、
+            #      以下は将来ダイアログ仕様が変わった場合のベストエフォートとして残す。
+            cef = [None]
+            def _find_cef2(ch, _):
+                if win32gui.GetClassName(ch) == "Chrome_RenderWidgetHostHWND":
+                    cef[0] = ch
+                    return False
+                return True
+            try:
+                win32gui.EnumChildWindows(dlg, _find_cef2, None)
+            except Exception:
+                pass
+            key_target = cef[0] or dlg
+            win32api.PostMessage(key_target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
+            time.sleep(0.1)
+            win32api.PostMessage(key_target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
+            log.info(f"終了確認: PostMessage Enter送出（{win32gui.GetClassName(key_target)} hwnd={key_target}）")
+            return True
+
+        time.sleep(0.5)
+
+    log.info("終了確認ダイアログ未検出（出ないか検出失敗 → 強制終了にフォールバック）")
+    return False
+
+
 def shutdown_kabustation() -> bool:
     """
     kabuステーションを終了する。
     1. メインウィンドウに WM_CLOSE を送信
-    2. 15秒待って終了しなければ taskkill /F で強制終了
+    2. 「終了しますか？」確認ポップアップに「はい」を送って正常終了させる
+    3. 15秒待って終了しなければ taskkill /F で強制終了
     """
     if not is_kabustation_running():
         log.info("kabuステーションは既に終了しています")
@@ -142,6 +258,9 @@ def shutdown_kabustation() -> bool:
     if main_hwnd:
         log.info(f"メインウィンドウへ WM_CLOSE 送信: hwnd={main_hwnd}")
         win32gui.PostMessage(main_hwnd, win32con.WM_CLOSE, 0, 0)
+        # 「終了しますか？」確認ポップアップ（既定=はい）に「はい」を送って正常終了させる
+        time.sleep(1.0)
+        _confirm_exit_dialog(main_hwnd)
     else:
         # ログイン画面のみの場合はそちらを閉じる
         login_hwnd = win32gui.FindWindow(None, "ログイン")

@@ -428,3 +428,4 @@ KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 | 2026-06-06 | check_positions.py（建玉確認・読み取り専用）、テストタスク掃除スクリプト追加 |
 | 2026-06-06 | close_all_positions.py（残建玉を実保有Side基準で返済・ExecutionDayで当日新規除外）追加 |
 | 2026-06-06 | 月曜寄付き前(08:55)の持ち越し建玉 自動返済タスク（単発）を用意 |
+| 2026-06-06 | kabuStation終了の高速化（SHUTDOWN_WAIT_SEC 15→5秒）＋終了確認ダイアログ対応 |
