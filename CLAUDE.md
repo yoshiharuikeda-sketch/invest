@@ -343,12 +343,17 @@ powershell -ExecutionPolicy Bypass -File C:\Users\tropi\invest_import_tasks.ps1
 | `invest_close.bat` | `run_daily.bat dry_close` | `run_daily.bat close` |
 | `invest_report.bat` | `run_daily.bat paper` | `run_daily.bat report` |
 
+- **仮想資金は100万円**（検証期間の取引数量算出用）。`.env_windows` の `PORTFOLIO_VALUE=30万`
+  とは**独立**に、DRY経路だけ100万に固定（本番復帰時に誤って大きい金額で実発注しない安全分離）。
+  - `run_daily.bat` の dry_open/dry_close は `--value 1000000`
+  - `paper_trade.py` の `VERIFY_CAPITAL = 1_000_000`
 - `dry_open` / `dry_close`: `kabu_order.py`（`--execute` なし）→ 実注文は出ない。ログは `log_order.txt`。
 - `paper`: `paper_trade.py` → シグナルの各銘柄について kabuステーション `/board` の
   `OpeningPrice`(始値) / `CurrentPrice`(終値) を取得し、`sign(ポジション)×数量×(終値−始値)` で
-  仮想損益を計算。`paper_pnl_history.csv` / `paper_pnl_detail_history.csv` に蓄積し、
-  **`paper_trade_history.xlsx`（紫ヘッダ＝仮想、2シート）** に1ファイルでまとめる。Gmail通知あり。
-  数量・SHORTスキップ条件は本番(`kabu_order.py`)と同一。当日価格が未確定の銘柄は「価格取得不可」。
+  仮想損益を計算（数量は仮想資金100万円ベース）。`paper_pnl_history.csv` /
+  `paper_pnl_detail_history.csv` に蓄積し、**`paper_trade_history.xlsx`（紫ヘッダ＝仮想、2シート）**
+  に1ファイルでまとめる。Gmail通知あり。SHORTスキップ条件は本番(`kabu_order.py`)と同一。
+  当日価格が未確定の銘柄は「価格取得不可」。
 - ログイン(08:47)・シグナル(08:50)・約定照会(15:32)・終了(15:40) は通常どおり（fetch_fills は
   DRYでは約定0件で空振りするが無害）。
 

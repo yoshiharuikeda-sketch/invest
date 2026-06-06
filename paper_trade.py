@@ -44,16 +44,9 @@ DETAIL_FIELDS = ["日付", "銘柄", "名称", "方向", "始値", "終値", "�
                  "損益(円)", "OC騰落率(%)", "備考"]
 
 
-def _load_portfolio_value() -> float:
-    env = DIR / ".env_windows"
-    try:
-        with open(env, encoding="utf-8-sig") as f:
-            for line in f:
-                if line.startswith("PORTFOLIO_VALUE="):
-                    return float(line.split("=", 1)[1].strip())
-    except Exception:
-        pass
-    return 300_000.0
+# DRY検証期間の仮想運用資金。本番の .env_windows PORTFOLIO_VALUE(30万) とは独立に
+# ここで100万円に固定する（本番復帰時に誤って大きい金額で実発注しないための安全分離）。
+VERIFY_CAPITAL = 1_000_000.0
 
 
 def _latest_signal():
@@ -176,7 +169,7 @@ def main():
     print(f"  仮想売買（ペーパートレード）損益記録  {datetime.now():%Y-%m-%d %H:%M:%S}")
     print("=" * 65)
 
-    pv = _load_portfolio_value()
+    pv = VERIFY_CAPITAL
     df_sig, date_fmt = _latest_signal()
     if df_sig is None:
         print("  ❌ シグナルファイルがありません")
