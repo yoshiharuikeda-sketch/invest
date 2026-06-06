@@ -11,6 +11,9 @@ IF "%1"=="open"   python "G:\My Drive\Claude Code\Invest\kabu_order.py" --execut
 IF "%1"=="close"  python "G:\My Drive\Claude Code\Invest\kabu_order.py" --execute --close --value %PORTFOLIO_VALUE% >> "G:\My Drive\Claude Code\Invest\log_order.txt" 2>&1
 IF "%1"=="close_remaining" python "G:\My Drive\Claude Code\Invest\close_all_positions.py" --execute >> "G:\My Drive\Claude Code\Invest\log_order.txt" 2>&1
 IF "%1"=="dry"     python "G:\My Drive\Claude Code\Invest\kabu_order.py" --value %PORTFOLIO_VALUE%
+IF "%1"=="dry_open"  python "G:\My Drive\Claude Code\Invest\kabu_order.py" --value %PORTFOLIO_VALUE% >> "G:\My Drive\Claude Code\Invest\log_order.txt" 2>&1
+IF "%1"=="dry_close" python "G:\My Drive\Claude Code\Invest\kabu_order.py" --close --value %PORTFOLIO_VALUE% >> "G:\My Drive\Claude Code\Invest\log_order.txt" 2>&1
+IF "%1"=="paper"     python "G:\My Drive\Claude Code\Invest\paper_trade.py" >> "G:\My Drive\Claude Code\Invest\log_paper.txt" 2>&1
 IF "%1"=="fills"   python "G:\My Drive\Claude Code\Invest\fetch_fills.py"
 IF "%1"=="monitor" python "G:\My Drive\Claude Code\Invest\monitor_agent.py"
 IF "%1"=="report"  python "G:\My Drive\Claude Code\Invest\report_agent.py"

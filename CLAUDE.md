@@ -7,7 +7,7 @@
 
 **証券会社**: 三菱UFJ eスマート証券（旧auカブコム）  
 **API**: kabuステーション® REST API (localhost:18080)  
-**運用モード**: 本番稼働中（`--execute` あり、2026-05-19より実発注開始）  
+**運用モード**: 🧪 **DRY検証中（2026-06-08〜 約1か月）** — 実発注を止め、kabuステーション価格ベースの仮想損益を `paper_trade_history.xlsx` に蓄積して戦略を検証中。kabuステーションの起動・ログイン・板取得は通常どおり実施。検証終了後は下記「DRY検証モードの戻し方」で本番に復帰する。  
 **運用規模**: PORTFOLIO_VALUE=300,000円（戦略有効性確認中のため縮小運用中）
 
 ---
@@ -328,9 +328,35 @@ powershell -ExecutionPolicy Bypass -File C:\Users\tropi\invest_import_tasks.ps1
 - 注文照会エンドポイント: `/orders?product=2`（信用取引）
 
 ### 発注モード
-- **現在のステータス: 本番稼働中**（2026-05-19より実発注開始）
-- タスクスケジューラは `--execute` フラグ付きで自動実発注する
+- **現在のステータス: 🧪 DRY検証中（2026-06-08〜 約1か月）**
+- 発注・決済タスクは DRY RUN（実注文なし）。kabuステーション価格ベースで仮想損益を記録。
+- 検証終了後は本番（実発注）へ戻す（下記参照）。
 - `run_daily.bat dry` はデバッグ・動作確認専用（実際の注文は発生しない）
+
+### DRY検証モード（2026-06-08〜）の構成と戻し方
+
+**仕組み**（タスク定義は変えず、ラッパーbatの呼び出し先のみ変更。タスク再登録不要）:
+
+| ラッパーbat | DRY中の呼び出し | 本番時の呼び出し |
+|-------------|----------------|-----------------|
+| `invest_open.bat` | `run_daily.bat dry_open` | `run_daily.bat open` |
+| `invest_close.bat` | `run_daily.bat dry_close` | `run_daily.bat close` |
+| `invest_report.bat` | `run_daily.bat paper` | `run_daily.bat report` |
+
+- `dry_open` / `dry_close`: `kabu_order.py`（`--execute` なし）→ 実注文は出ない。ログは `log_order.txt`。
+- `paper`: `paper_trade.py` → シグナルの各銘柄について kabuステーション `/board` の
+  `OpeningPrice`(始値) / `CurrentPrice`(終値) を取得し、`sign(ポジション)×数量×(終値−始値)` で
+  仮想損益を計算。`paper_pnl_history.csv` / `paper_pnl_detail_history.csv` に蓄積し、
+  **`paper_trade_history.xlsx`（紫ヘッダ＝仮想、2シート）** に1ファイルでまとめる。Gmail通知あり。
+  数量・SHORTスキップ条件は本番(`kabu_order.py`)と同一。当日価格が未確定の銘柄は「価格取得不可」。
+- ログイン(08:47)・シグナル(08:50)・約定照会(15:32)・終了(15:40) は通常どおり（fetch_fills は
+  DRYでは約定0件で空振りするが無害）。
+
+**本番（実発注）に戻す手順**（batを元に戻すだけ。タスク再登録不要）:
+1. `invest_open.bat` の `dry_open` → `open`
+2. `invest_close.bat` の `dry_close` → `close`
+3. `invest_report.bat` の `paper` → `report`
+4. `git add -A && git commit && git push`（masterへ）
 
 ### kabuStation自動ログインフロー（2026-05 新仕様）
 kabuStationのログイン仕様変更に伴い `kabu_autologin.py` を更新済み（2026-04-28〜05-22）。
@@ -429,3 +455,5 @@ KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 | 2026-06-06 | close_all_positions.py（残建玉を実保有Side基準で返済・ExecutionDayで当日新規除外）追加 |
 | 2026-06-06 | 月曜寄付き前(08:55)の持ち越し建玉 自動返済タスク（単発）を用意 |
 | 2026-06-06 | kabuStation終了の高速化（SHUTDOWN_WAIT_SEC 15→5秒）＋終了確認ダイアログ対応 |
+| 2026-06-08 | DRY検証モード開始（約1か月）。発注/決済をDRY化、paper_trade.pyで仮想損益をExcel蓄積 |
+| 2026-06-08 | _send_gmail のscope修正（readonly除去→sendのみ、宛先固定）。invalid_scope解消 |

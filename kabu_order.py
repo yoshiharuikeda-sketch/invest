@@ -393,7 +393,9 @@ def _force_relogin() -> bool:
 
 
 def _send_gmail(subject: str, body: str) -> None:
-    """monitor_agent と同じ token_monitor.json を使って自分宛にメール送信する。"""
+    """report_agent と同じ token_monitor.json でメール送信する。
+    ※ token_monitor.json は gmail.send のみで認可されているため scope は send だけ。
+      readonly を要求すると invalid_scope になる。宛先は固定（getProfileは使わない）。"""
     try:
         import base64
         from email.mime.text import MIMEText
@@ -402,8 +404,8 @@ def _send_gmail(subject: str, body: str) -> None:
         from googleapiclient.discovery import build
 
         token_file = os.path.join(DATA_DIR, "token_monitor.json")
-        scopes = ["https://www.googleapis.com/auth/gmail.readonly",
-                  "https://www.googleapis.com/auth/gmail.send"]
+        scopes = ["https://www.googleapis.com/auth/gmail.send"]
+        recipient = "yoshiharu.ikeda@gmail.com"
         if not os.path.exists(token_file):
             print("  ⚠️  token_monitor.json が無いためアラート送信をスキップ")
             return
@@ -411,13 +413,12 @@ def _send_gmail(subject: str, body: str) -> None:
         if (not creds.valid) and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         service = build("gmail", "v1", credentials=creds)
-        me = service.users().getProfile(userId="me").execute()["emailAddress"]
         msg = MIMEText(body, "plain", "utf-8")
-        msg["to"] = me
+        msg["to"] = recipient
         msg["subject"] = subject
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         service.users().messages().send(userId="me", body={"raw": raw}).execute()
-        print(f"  📧 アラート送信: {subject} → {me}")
+        print(f"  📧 アラート送信: {subject} → {recipient}")
     except Exception as e:
         print(f"  ⚠️  アラート送信失敗: {e}")
 
