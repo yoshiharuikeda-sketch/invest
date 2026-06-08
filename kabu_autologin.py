@@ -872,10 +872,12 @@ def do_login(force: bool = False) -> bool:
         if not submit_account_number():
             return False
 
-        # 6. 2FAコードをGmailから取得（最大30秒）
-        code = fetch_2fa_code(service, since_dt=login_time, timeout_sec=30)
+        # 6. 2FAコードをGmailから取得（最大90秒）
+        #    ※ 2026-06-08: 30秒では午後の再ログインでメール遅延に間に合わずログイン失敗
+        #      （→ paper_trade が板価格を取れず損益0）した実績があり 90秒に延長。
+        code = fetch_2fa_code(service, since_dt=login_time, timeout_sec=90)
         if code is None:
-            log.info("2FAコード未着（30秒）→ 2FAスキップしてパスキー選択へ進む")
+            log.info("2FAコード未着（90秒）→ 2FAスキップしてパスキー選択へ進む")
         else:
             # 7. 2FAフォームが表示されるまで待つ
             time.sleep(3)

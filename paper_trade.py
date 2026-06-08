@@ -176,16 +176,16 @@ def main():
         sys.exit(1)
     print(f"  シグナル日付(米国): {date_fmt}  運用資産(仮想): {pv:,.0f}円")
 
+    # ※ get_token は日付単位でキャッシュするが、kabuステーションは日中に再起動
+    #   （09:10終了→15:20再ログイン）するため朝のトークンは無効化される。
+    #   必ず force_refresh で現在のセッションに対応した新しいトークンを取る。
     try:
-        token = ko.get_token()
-    except Exception:
-        try:
-            token = ko.get_token(force_refresh=True)
-        except Exception as e:
-            print(f"  ❌ トークン取得失敗（kabuステーション未起動?）: {e}")
-            ko._send_gmail("[投資戦略/仮想] ⚠️ 価格取得失敗",
-                           f"kabuステーション未起動/未ログインの可能性。\n{e}")
-            sys.exit(1)
+        token = ko.get_token(force_refresh=True)
+    except Exception as e:
+        print(f"  ❌ トークン取得失敗（kabuステーション未起動?）: {e}")
+        ko._send_gmail("[投資戦略/仮想] ⚠️ 価格取得失敗",
+                       f"kabuステーション未起動/未ログインの可能性。\n{e}")
+        sys.exit(1)
 
     detail_rows = []
     total_pnl = 0.0
