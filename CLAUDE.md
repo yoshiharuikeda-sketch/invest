@@ -464,3 +464,4 @@ KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 | 2026-06-08 | _send_gmail のscope修正（readonly除去→sendのみ、宛先固定）。invalid_scope解消 |
 | 2026-06-08 | DRY初日に仮想損益が0になる不具合修正（古いトークンで板/board が401）。2FA待ち30→90秒 |
 | 2026-06-08 | get_token堅牢化：_authed_request で401検知→force_refresh自動リトライ（本番send_order/板も自己回復） |
+| 2026-06-08 | universe を仕様どおり17銘柄に復帰：daily_signalに1625.T（電機・精密）追加（v3シクリカルにも追加）。執行は売建可能な200A.Tに置換（kabu_order JP_TICKER_TO_CODE）。cache_prior.parquet再構築 |
