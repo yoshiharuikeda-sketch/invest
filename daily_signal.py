@@ -133,9 +133,11 @@ def build_prior_subspace(all_tickers: list) -> np.ndarray:
 
     v1 = np.ones(N) / np.sqrt(N)
 
+    # 国スプレッドファクター: 仕様どおり 米国=+1/NU(=1/11), 日本=-1/NJ(=-1/17)
+    # （各国の純エクスポージャを±1に揃える設計。v1=等ウェイト方向に厳密直交）
     v2_raw = np.zeros(N)
-    v2_raw[:NU] =  1.0 / np.sqrt(NU)
-    v2_raw[NU:] = -1.0 / np.sqrt(NJ)
+    v2_raw[:NU] =  1.0 / NU
+    v2_raw[NU:] = -1.0 / NJ
     v2 = v2_raw - np.dot(v2_raw, v1) * v1
     v2 /= np.linalg.norm(v2)
 
