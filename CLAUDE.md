@@ -462,3 +462,5 @@ KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 | 2026-06-06 | kabuStation終了の高速化（SHUTDOWN_WAIT_SEC 15→5秒）＋終了確認ダイアログ対応 |
 | 2026-06-08 | DRY検証モード開始（約1か月）。発注/決済をDRY化、paper_trade.pyで仮想損益をExcel蓄積 |
 | 2026-06-08 | _send_gmail のscope修正（readonly除去→sendのみ、宛先固定）。invalid_scope解消 |
+| 2026-06-08 | DRY初日に仮想損益が0になる不具合修正（古いトークンで板/board が401）。2FA待ち30→90秒 |
+| 2026-06-08 | get_token堅牢化：_authed_request で401検知→force_refresh自動リトライ（本番send_order/板も自己回復） |

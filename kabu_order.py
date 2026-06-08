@@ -123,11 +123,17 @@ DATA_DIR = os.path.dirname(os.path.abspath(__file__))
 # 1. トークン管理
 # =====================================================================
 
+_CURRENT_TOKEN = None   # 直近に取得した有効トークン（401自動回復で更新される）
+
+
 def get_token(password: str = API_PASSWORD, force_refresh: bool = False) -> str:
     """
-    APIトークンを取得（キャッシュ付き）
-    トークンは当日中有効のため、日付が変わったら再取得する
+    APIトークンを取得（日付キャッシュ付き）。
+    ※ kabuステーションは日中に再起動（09:10終了→15:20再ログイン）するため、
+      前セッションのトークンは無効化される。古いキャッシュで 401 を踏んだ場合は
+      _authed_request が自動で force_refresh して取り直す。
     """
+    global _CURRENT_TOKEN
     today = datetime.now().strftime("%Y-%m-%d")
 
     # キャッシュ確認
@@ -135,7 +141,8 @@ def get_token(password: str = API_PASSWORD, force_refresh: bool = False) -> str:
         with open(TOKEN_CACHE) as f:
             cache = json.load(f)
         if cache.get("date") == today and cache.get("token"):
-            return cache["token"]
+            _CURRENT_TOKEN = cache["token"]
+            return _CURRENT_TOKEN
 
     if not password:
         raise ValueError(
@@ -155,8 +162,33 @@ def get_token(password: str = API_PASSWORD, force_refresh: bool = False) -> str:
     with open(TOKEN_CACHE, "w") as f:
         json.dump({"date": today, "token": token}, f)
 
+    _CURRENT_TOKEN = token
     print(f"  ✅ トークン取得成功")
     return token
+
+
+def _authed_request(method: str, path: str, token: str = None, *,
+                    body=None, params=None, timeout=10):
+    """X-API-KEY 付きでリクエストし、401（トークン失効）を踏んだら
+    force_refresh で取り直して1回だけリトライする。
+    直近の有効トークン(_CURRENT_TOKEN)を優先使用するため、セッション切替後も
+    最初の1回で回復したあとは再失効しない。"""
+    global _CURRENT_TOKEN
+    tok = _CURRENT_TOKEN or token or get_token()
+
+    def _do(t):
+        headers = {"X-API-KEY": t}
+        if body is not None:
+            headers["Content-Type"] = "application/json"
+        return requests.request(method, f"{KABU_API_BASE}{path}",
+                                headers=headers, json=body, params=params, timeout=timeout)
+
+    resp = _do(tok)
+    if resp.status_code == 401:
+        print("  ⚠️  トークン失効(401)を検出 → 再取得してリトライ")
+        tok = get_token(force_refresh=True)
+        resp = _do(tok)
+    return resp
 
 
 # =====================================================================
@@ -165,18 +197,16 @@ def get_token(password: str = API_PASSWORD, force_refresh: bool = False) -> str:
 
 def get_wallet(token: str) -> dict:
     """現物・信用の余力照会"""
-    headers = {"X-API-KEY": token}
-    resp_cash = requests.get(f"{KABU_API_BASE}/wallet/cash", headers=headers, timeout=10)
+    resp_cash = _authed_request("GET", "/wallet/cash", token)
     resp_cash.raise_for_status()
-    resp_margin = requests.get(f"{KABU_API_BASE}/wallet/margin", headers=headers, timeout=10)
+    resp_margin = _authed_request("GET", "/wallet/margin", token)
     resp_margin.raise_for_status()
     return {**resp_cash.json(), **resp_margin.json()}
 
 
 def get_positions(token: str) -> pd.DataFrame:
     """保有ポジション一覧"""
-    headers = {"X-API-KEY": token}
-    resp = requests.get(f"{KABU_API_BASE}/positions", headers=headers, timeout=10)
+    resp = _authed_request("GET", "/positions", token)
     resp.raise_for_status()
     data = resp.json()
     if not data:
@@ -186,10 +216,7 @@ def get_positions(token: str) -> pd.DataFrame:
 
 def get_orders(token: str) -> pd.DataFrame:
     """当日の注文一覧"""
-    headers = {"X-API-KEY": token}
-    params  = {"product": 0}   # 0: 全商品
-    resp = requests.get(f"{KABU_API_BASE}/orders", headers=headers,
-                        params=params, timeout=10)
+    resp = _authed_request("GET", "/orders", token, params={"product": 0})  # 0: 全商品
     resp.raise_for_status()
     data = resp.json()
     if not data:
@@ -202,11 +229,7 @@ def get_board(token: str, symbol: str, exchange: int = 1) -> dict:
     板情報・現在値取得
     exchange: 1=東証, 3=名証, 5=福証, 6=札証
     """
-    headers = {"X-API-KEY": token}
-    resp = requests.get(
-        f"{KABU_API_BASE}/board/{symbol}@{exchange}",
-        headers=headers, timeout=10
-    )
+    resp = _authed_request("GET", f"/board/{symbol}@{exchange}", token)
     resp.raise_for_status()
     return resp.json()
 
@@ -249,7 +272,6 @@ def send_order(
     if dry_run:
         return {"OrderId": "DRY_RUN", "Result": 0}
 
-    headers = {"X-API-KEY": token, "Content-Type": "application/json"}
     deliv_type = 0 if cash_margin == 2 else 2  # 信用新規=0、信用返済=2
     body = {
         "Password":          API_PASSWORD,
@@ -269,12 +291,7 @@ def send_order(
     if close_position_order is not None:
         body["ClosePositionOrder"] = close_position_order
 
-    resp = requests.post(
-        f"{KABU_API_BASE}/sendorder",
-        headers=headers,
-        json=body,
-        timeout=10
-    )
+    resp = _authed_request("POST", "/sendorder", token, body=body, timeout=10)
 
     if resp.status_code != 200:
         print(f"    ❌ 発注エラー: {resp.status_code} {resp.text}")
