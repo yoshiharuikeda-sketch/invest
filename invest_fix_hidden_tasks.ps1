@@ -15,4 +15,4 @@ for ($i = 0; $i -lt $idx.Count; $i++) {
     $t = Get-ScheduledTask -TaskName $name
     Write-Host ("OK: {0}  Action={1} {2}" -f $t.TaskName, $t.Actions[0].Execute, $t.Actions[0].Arguments)
 }
-Write-Host "Done. close/fills/report は非表示(VBS)起動になりました。"
+Write-Host "Done. close/fills/report now launch hidden via VBS (no cmd window)."
