@@ -40,7 +40,8 @@
     </Triggers>
     <Actions Context="Author">
         <Exec>
-            <Command>G:\My Drive\Claude Code\Invest\invest_report.bat</Command>
+            <Command>wscript.exe</Command>
+            <Arguments>"G:\My Drive\Claude Code\Invest\invest_report_hidden.vbs"</Arguments>
         </Exec>
     </Actions>
 </Task>

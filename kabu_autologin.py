@@ -596,6 +596,38 @@ def submit_account_number() -> bool:
         return False
 
 
+def _resend_login_enter() -> None:
+    """ログイン送信のEnterがCEFに登録されず（フォーカス外れ等で）2FAが要求されない事象の
+    リトライ用。口座番号は再入力せず、ログイン窓を一瞬だけ最前面化してEnterを再送する。
+    （初回はフォーカス操作しない方針だが、失敗時のリトライに限り最前面化して確実に送る）"""
+    try:
+        hwnd = win32gui.FindWindow(None, "ログイン")
+        if not hwnd:
+            log.info("Enter再送: ログイン窓が見つからない（既に遷移済みの可能性）")
+            return
+        # 再送時のみ最前面化してCEFにキーボードフォーカスを当てる
+        _force_foreground(hwnd)
+        cef_hwnd = [None]
+        def _find_cef(child_hwnd, _):
+            if win32gui.GetClassName(child_hwnd) == "Chrome_RenderWidgetHostHWND":
+                cef_hwnd[0] = child_hwnd
+                return False
+            return True
+        try:
+            win32gui.EnumChildWindows(hwnd, _find_cef, None)
+        except Exception:
+            pass
+        target = cef_hwnd[0] or hwnd
+        for _ in range(2):
+            win32api.PostMessage(target, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0x001C0001)
+            time.sleep(0.1)
+            win32api.PostMessage(target, win32con.WM_KEYUP, win32con.VK_RETURN, 0xC01C0001)
+            time.sleep(1.0)
+        log.info(f"Enter再送完了（{win32gui.GetClassName(target)} hwnd={target}）")
+    except Exception as e:
+        log.info(f"Enter再送 失敗: {e}")
+
+
 def find_passkey_dialog(known_handles: set, timeout_sec: int = PASSKEY_WAIT_SEC) -> int | None:
     """
     Enter×2後に表示されるパスキー認証選択ウィンドウを検出する。
@@ -872,12 +904,20 @@ def do_login(force: bool = False) -> bool:
         if not submit_account_number():
             return False
 
-        # 6. 2FAコードをGmailから取得（最大90秒）
-        #    ※ 2026-06-08: 30秒では午後の再ログインでメール遅延に間に合わずログイン失敗
-        #      （→ paper_trade が板価格を取れず損益0）した実績があり 90秒に延長。
-        code = fetch_2fa_code(service, since_dt=login_time, timeout_sec=90)
+        # 6. 2FAコードをGmailから取得（Enter取りこぼし対策のリトライ付き）
+        #    口座番号送信のEnterがCEFに登録されないとOTPが要求されず2FAが来ない事象への対策。
+        #    30秒待っても未着なら、ログイン窓を最前面化してEnterを再送し再待機（最大3回=約90秒）。
+        #    login_time は更新しない（遅延到着のOTP・再送で出たOTPのどちらも拾えるようにする）。
+        code = None
+        for _attempt in range(3):
+            code = fetch_2fa_code(service, since_dt=login_time, timeout_sec=30)
+            if code:
+                break
+            if _attempt < 2:
+                log.info(f"2FA未着（試行{_attempt + 1}/3, 30秒）→ ログイン窓を最前面化してEnter再送")
+                _resend_login_enter()
         if code is None:
-            log.info("2FAコード未着（90秒）→ 2FAスキップしてパスキー選択へ進む")
+            log.info("2FAコード未着（再送含め約90秒）→ 2FAスキップしてパスキー選択へ進む")
         else:
             # 7. 2FAフォームが表示されるまで待つ
             time.sleep(3)

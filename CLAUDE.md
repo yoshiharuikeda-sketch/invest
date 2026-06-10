@@ -464,5 +464,6 @@ KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 | 2026-06-08 | _send_gmail のscope修正（readonly除去→sendのみ、宛先固定）。invalid_scope解消 |
 | 2026-06-08 | DRY初日に仮想損益が0になる不具合修正（古いトークンで板/board が401）。2FA待ち30→90秒 |
 | 2026-06-08 | get_token堅牢化：_authed_request で401検知→force_refresh自動リトライ（本番send_order/板も自己回復） |
+| 2026-06-10 | 午後ログイン不安定対策：口座番号送信Enterの取りこぼし(CEFフォーカス外れ)対策。2FA未着なら最前面化してEnter再送→再待機を最大3回（_resend_login_enter）。決済/照会/レポートのcmd窓を非表示VBS起動化 |
 | 2026-06-08 | universe を仕様どおり17銘柄に復帰：daily_signalに1625.T（電機・精密）追加（v3シクリカルにも追加）。執行は売建可能な200A.Tに置換（kabu_order JP_TICKER_TO_CODE）。cache_prior.parquet再構築 |
 | 2026-06-08 | v2（国スプレッド）を仕様どおり 1/√N → 1/N（米国1/11・日本1/17）に修正。daily_signal.py / backtest.py 両方を統一（仕様完全準拠） |
