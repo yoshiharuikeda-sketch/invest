@@ -467,3 +467,4 @@ KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 | 2026-06-10 | 午後ログイン不安定対策：口座番号送信Enterの取りこぼし(CEFフォーカス外れ)対策。2FA未着なら最前面化してEnter再送→再待機を最大3回（_resend_login_enter）。決済/照会/レポートのcmd窓を非表示VBS起動化 |
 | 2026-06-08 | universe を仕様どおり17銘柄に復帰：daily_signalに1625.T（電機・精密）追加（v3シクリカルにも追加）。執行は売建可能な200A.Tに置換（kabu_order JP_TICKER_TO_CODE）。cache_prior.parquet再構築 |
 | 2026-06-08 | v2（国スプレッド）を仕様どおり 1/√N → 1/N（米国1/11・日本1/17）に修正。daily_signal.py / backtest.py 両方を統一（仕様完全準拠） |
+| 2026-06-11 | 【6-10 cmd窓非表示化の撤回】決済/照会/レポートのwscript+非表示VBS起動が、Smart App Control(Enforced)＋Google Drive同期のMOTW付与で `Code:800711CE` ブロックされ全不発。タスクXML 3本を**bat直接起動に戻し**、`invest_{close,fills,report}_hidden.vbs` と `invest_fix_hidden_tasks.ps1` を削除。cmd窓は再表示されるが確実性を優先。再登録は管理者権限要（昨日adminで登録された影響）→ UAC昇格でinvest_import_tasks.ps1実行。※GドライブのVBSにMOTWが付くと.vbs実行が弾かれる点に注意（必要時は `Get-ChildItem *.vbs \| Unblock-File`） |

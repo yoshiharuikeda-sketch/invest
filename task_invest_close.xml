@@ -41,8 +41,7 @@
   </Triggers>
   <Actions Context="Author">
     <Exec>
-      <Command>wscript.exe</Command>
-      <Arguments>"G:\My Drive\Claude Code\Invest\invest_close_hidden.vbs"</Arguments>
+      <Command>G:\My Drive\Claude Code\Invest\invest_close.bat</Command>
     </Exec>
   </Actions>
 </Task>
