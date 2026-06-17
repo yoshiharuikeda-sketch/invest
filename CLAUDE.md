@@ -87,7 +87,16 @@ G:\My Drive\Claude Code\Invest\
 | **15:35** | 投資戦略_損益レポート | report_agent.py → Gmail通知 + Excel更新 | **true** | - |
 | **15:40** | 投資戦略_自動終了 | kabuStation終了（VBS非表示起動） | true | **true** |
 
-**WakeToRun=true** 設定により PC スリープ中でも自動的に復帰してタスク実行される。
+**WakeToRun=true** 設定により PC スリープ中でも自動的に復帰してタスク実行される……はずだが、**本機ではWakeToRun（RTCタイマー復帰）が実地で不安定**（2026-06-17にイベントログで確認：15:35:00にスリープ→15:40の自動終了が不発→21:53の手動USB復帰まで放置）。このため下記「キープアウェイク」で**スリープさせない方向**の対策を併用している。
+
+### 【重要】午後のキープアウェイク（2026-06-17）— WakeToRun非依存の終了保証
+
+WakeToRunに依存せず、**午後ログイン後にPCをスリープさせない**ことで決済〜自動終了(15:40)を確実化。`kabu_autologin.py` に実装：
+
+- `_keep_awake_until(target_local)`：`SetThreadExecutionState(ES_CONTINUOUS|ES_SYSTEM_REQUIRED)` を定期再アサートしながら指定時刻まで常駐（ディスプレイは消えてよい＝ES_DISPLAY_REQUIREDは付けない）。
+- `main()`：ログイン後、**15時台（hour==15 かつ minute<40）のログインなら自動で 15:42 まで維持**（午前ログインや他時刻には作用しない）。明示指定は `--keep-awake-until HH:MM`。
+- タスク/bat/XMLは無変更（`invest_login.bat → run_daily.bat login → kabu_autologin.py` の既存経路で自動有効化）。管理者権限不要。
+- これにより午後ログインタスクは15:20〜15:42の約22分間「実行中」のまま常駐する（AC電源デスクトップでは無害）。
 
 ### 補助タスク（英語名）の役割と注意
 
@@ -467,4 +476,5 @@ KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 | 2026-06-10 | 午後ログイン不安定対策：口座番号送信Enterの取りこぼし(CEFフォーカス外れ)対策。2FA未着なら最前面化してEnter再送→再待機を最大3回（_resend_login_enter）。決済/照会/レポートのcmd窓を非表示VBS起動化 |
 | 2026-06-08 | universe を仕様どおり17銘柄に復帰：daily_signalに1625.T（電機・精密）追加（v3シクリカルにも追加）。執行は売建可能な200A.Tに置換（kabu_order JP_TICKER_TO_CODE）。cache_prior.parquet再構築 |
 | 2026-06-08 | v2（国スプレッド）を仕様どおり 1/√N → 1/N（米国1/11・日本1/17）に修正。daily_signal.py / backtest.py 両方を統一（仕様完全準拠） |
+| 2026-06-17 | 午後の終了保証：WakeToRunが実機で不発（イベントログで15:35スリープ→15:40終了不発→手動復帰まで放置を確認）。`kabu_autologin.py` に `_keep_awake_until` を追加し、15時台ログインは自動で15:42までスリープ抑制を維持（`--keep-awake-until HH:MM` 手動指定も可）。タスク無変更・管理者不要 |
 | 2026-06-11 | 【6-10 cmd窓非表示化の撤回】決済/照会/レポートのwscript+非表示VBS起動が、Smart App Control(Enforced)＋Google Drive同期のMOTW付与で `Code:800711CE` ブロックされ全不発。タスクXML 3本を**bat直接起動に戻し**、`invest_{close,fills,report}_hidden.vbs` と `invest_fix_hidden_tasks.ps1` を削除。cmd窓は再表示されるが確実性を優先。再登録は管理者権限要（昨日adminで登録された影響）→ UAC昇格でinvest_import_tasks.ps1実行。※GドライブのVBSにMOTWが付くと.vbs実行が弾かれる点に注意（必要時は `Get-ChildItem *.vbs \| Unblock-File`） |

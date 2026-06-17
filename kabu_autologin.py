@@ -845,6 +845,35 @@ def _allow_sleep():
     log.info("スリープ抑制: 解除")
 
 
+def _keep_awake_until(target_local: datetime):
+    """target_local（naiveなローカル時刻）までスリープ抑制を維持し続ける。
+
+    WakeToRun（タイマー復帰）が実機で不安定なため、午後ログイン後に決済・約定照会・
+    レポート・自動終了(15:40)が走り終わるまでPCを起こし続け、復帰失敗による
+    「kabuステーション持ち越し」を根絶する。ディスプレイは消えてよいので
+    ES_DISPLAY_REQUIRED は付けない（システム稼働のみ維持）。
+    """
+    now = datetime.now()
+    if target_local <= now:
+        return
+    wait_sec = (target_local - now).total_seconds()
+    log.info(
+        f"スリープ抑制を維持: {target_local.strftime('%H:%M')} まで"
+        f"（約{int(wait_sec // 60)}分・WakeToRun非依存で午後の終了処理を保証）"
+    )
+    try:
+        deadline = time.time() + wait_sec
+        while time.time() < deadline:
+            # 定期的に再アサート（堅牢化）
+            ctypes.windll.kernel32.SetThreadExecutionState(
+                _ES_CONTINUOUS | _ES_SYSTEM_REQUIRED
+            )
+            time.sleep(min(30.0, max(1.0, deadline - time.time())))
+    finally:
+        _allow_sleep()
+    log.info("スリープ抑制: 維持終了（午後の終了処理完了想定時刻に到達）")
+
+
 def do_login(force: bool = False) -> bool:
     """kabuステーションを起動してログインする。
     force=True のときは APIトークンが取れても（取引セッション失効対策で）
@@ -985,12 +1014,40 @@ def main():
         default="login",
         help="login: 起動+ログイン（デフォルト）/ shutdown: 終了",
     )
+    parser.add_argument(
+        "--keep-awake-until",
+        default=None,
+        metavar="HH:MM",
+        help="ログイン後、指定ローカル時刻までスリープ抑制を維持する"
+             "（WakeToRun非依存の午後終了対策。未指定でも15時台ログインは自動で15:42まで維持）",
+    )
     args = parser.parse_args()
 
     if args.mode == "shutdown":
-        success = do_shutdown()
-    else:
-        success = do_login()
+        exit(0 if do_shutdown() else 1)
+
+    success = do_login()
+
+    # --- キープアウェイク対象時刻の決定 ---
+    # WakeToRunが実機で不発のため、午後の引け処理ウィンドウにログインしたら
+    # 自動終了(15:40)が終わる頃まで起こし続ける（ログイン成否に関わらず実施し、
+    # 決済・自動終了が確実に起きている状態で走るようにする）。
+    target = None
+    now = datetime.now()
+    if args.keep_awake_until:
+        try:
+            hh, mm = map(int, args.keep_awake_until.split(":"))
+            t = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+            if t > now:
+                target = t
+        except Exception as e:
+            log.warning(f"--keep-awake-until の解釈に失敗（無視）: {e}")
+    elif now.hour == 15 and now.minute < 40:
+        # 午後ログイン(15:20想定)で自動有効化。15:42まで維持（15:40終了＋余裕）。
+        target = now.replace(hour=15, minute=42, second=0, microsecond=0)
+
+    if target:
+        _keep_awake_until(target)
 
     exit(0 if success else 1)
 
