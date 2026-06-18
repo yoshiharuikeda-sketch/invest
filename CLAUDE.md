@@ -98,6 +98,26 @@ WakeToRunに依存せず、**午後ログイン後にPCをスリープさせな�
 - タスク/bat/XMLは無変更（`invest_login.bat → run_daily.bat login → kabu_autologin.py` の既存経路で自動有効化）。管理者権限不要。
 - これにより午後ログインタスクは15:20〜15:42の約22分間「実行中」のまま常駐する（AC電源デスクトップでは無害）。
 
+### 【重要・真因】無人スリープタイムアウト（UNATTENDSLP）— 2026-06-18
+
+キープアウェイク(6-17)を入れても **2026-06-18 も 15:35:00 に再スリープ**し、レポートタスクが
+Result=0x1で失敗（メール未送・記録欠落）。イベントログとpowercfgで真因が判明：
+
+- タイマー復帰(WakeToRun)した"無人"状態では、Windowsの **「System unattended sleep timeout
+  (UNATTENDSLP)」が既定120秒**で効き、`ES_SYSTEM_REQUIRED`（アイドルタイマーをリセットするだけ）
+  では**上書きできずに強制スリープ**する。これが2日連続15:35:00スリープの正体。
+- **対策（恒久・管理者権限不要で適用済み）**: UNATTENDSLP(AC)を **1800秒(30分)** に延長。
+  ```
+  powercfg -setacvalueindex SCHEME_CURRENT SUB_SLEEP 7bc4a2f9-d8fc-4469-b07b-33eb785aaca0 1800
+  powercfg -setactive SCHEME_CURRENT
+  ```
+  （UNATTENDSLPは既定で隠し設定。可視化は `powercfg -attributes SUB_SLEEP 7bc4a2f9-... -ATTRIB_HIDE`）
+- これで15:19のタイマー復帰後、無人タイムアウトは約15:49まで延び、15:40終了・15:42キープ
+  アウェイクを確実にカバーする。キープアウェイク(6-17)とは併用（多層防御）。
+- **注意**: これは**Windowsの電源設定（gitに含まれない端末側の状態）**。Windows Update や
+  電源プラン切替でリセットされ得る。再発時は上記コマンドで再適用。`powercfg /lastwake` が
+  Device/USB（手動）で、RTCタイマー復帰でないことが不調の兆候。
+
 ### 補助タスク（英語名）の役割と注意
 
 正規の日本語名7タスクとは別に、英語名の補助タスクが5本ある（`invest_import_tasks.ps1` の管理対象外＝手動登録。変更には管理者権限が必要）。
