@@ -39,21 +39,7 @@ G:\My Drive\Claude Code\Invest\
 ├── invest_monitor.bat
 ├── invest_report.bat
 │
-├── task_invest_login.xml     # タスクスケジューラ XML定義（7本、UTF-8）
-├── task_invest_signal.xml
-├── task_invest_open.xml
-├── task_invest_close.xml
-├── task_invest_fills.xml     # 約定照会タスク（15:32, WakeToRun=true）
-├── task_invest_shutdown.xml  # 自動終了タスク（15:40, WakeToRun=true）
-├── task_invest_report.xml    # 損益レポートタスク（15:35, WakeToRun=true）
-├── task_names.txt            # タスク名（日本語）の定義ファイル
-│
-├── invest_import_tasks.bat   # タスク再登録
-├── invest_import_tasks.ps1   # タスク登録スクリプト本体
-├── invest_sync_tasks.bat     # ps1・task_names.txt・全XMLを C:\Users\tropi\ へコピー
-│
-├── invest_login_hidden.vbs   # VBS非表示起動（タスクスケジューラ用）
-├── invest_shutdown_hidden.vbs
+├── invest_setup_tasks.ps1    # 【唯一の正本】9タスクを全削除→再登録（英語のみ・要admin・C:から実行）
 ├── invest_test_autologin.ps1 # 手動テスト用（スリープ不要）
 │
 ├── log_autologin.txt      # kabu_autologin.py のログ
@@ -73,82 +59,71 @@ G:\My Drive\Claude Code\Invest\
 
 | 時刻  | タスク名 | 処理内容 | WakeToRun | StartWhenAvail |
 |-------|---------|---------|:----:|:----:|
-| 08:45 | `invest_login`（英語名・補助） | 自動ログイン（1回目） | true | - |
-| **08:47** | 投資戦略_自動ログイン | kabuStation起動 + 2FA + API認証（VBS非表示起動）| true | - |
-| 08:50 | 投資戦略_シグナル計算 | daily_signal.py → signal_YYYYMMDD.csv | - | - |
-| 09:00 | 投資戦略_寄付き発注 | kabu_order.py --execute（本番発注） | - | - |
-| 09:05 | `invest_monitor_morning`（英語名・補助） | monitor_agent.py（ログ監視→Gmail） | - | - |
-| **09:10** | `invest_morning_shutdown`（英語名・補助） | kabuStation終了（昼間アイドル中の常駐解放） | - | - |
+| 08:45 | `invest_login_am` | kabuStation起動 + 2FA + API認証 | true | - |
+| 08:50 | `invest_signal` | daily_signal.py → signal_YYYYMMDD.csv | - | - |
+| 09:00 | `invest_open` | kabu_order.py（発注。DRY中は dry_open） | - | - |
+| **09:10** | `invest_shutdown_am` | kabuStation終了（昼間アイドル中の常駐解放） | true | **true** |
 | 〜昼間は kabuStation 停止〜 | | | | |
-| **15:20** | `invest_afternoon_login`（英語名・補助） | 引け前に再ログイン（決済用の新セッション確保）。2026-06-06に15:10→15:20へ前倒し（金曜型Code:10016対策） | true | - |
-| 15:25 | 投資戦略_引成決済 | kabu_order.py --execute --close（本番決済） | - | - |
-| **15:32** | 投資戦略_約定照会 | fetch_fills.py → fills_YYYYMMDD.csv（実約定価格＋板情報） | **true** | - |
-| 15:32 | `invest_monitor_evening`（英語名・補助） | monitor_agent.py（ログ監視→Gmail） | - | - |
-| **15:35** | 投資戦略_損益レポート | report_agent.py → Gmail通知 + Excel更新 | **true** | - |
-| **15:40** | 投資戦略_自動終了 | kabuStation終了（VBS非表示起動） | true | **true** |
+| **15:20** | `invest_login_pm` | 引け前に再ログイン（決済用の新セッション確保）+ **キープアウェイク常駐(〜15:42)** | true | - |
+| 15:25 | `invest_close` | kabu_order.py --close（決済。DRY中は dry_close） | true | - |
+| **15:32** | `invest_fills` | fetch_fills.py → fills_YYYYMMDD.csv（実約定価格＋板情報） | true | - |
+| **15:35** | `invest_report` | report_agent.py/paper_trade.py → Gmail通知 + Excel更新 | true | - |
+| **15:40** | `invest_shutdown_pm` | kabuStation終了 | true | **true** |
 
-**WakeToRun=true** 設定により PC スリープ中でも自動的に復帰してタスク実行される……はずだが、**本機ではWakeToRun（RTCタイマー復帰）が実地で不安定**（2026-06-17にイベントログで確認：15:35:00にスリープ→15:40の自動終了が不発→21:53の手動USB復帰まで放置）。このため下記「キープアウェイク」で**スリープさせない方向**の対策を併用している。
+**タスク構成は 2026-06-19 に9本へ簡素化**（旧：日本語名7＋英語補助5＋自動スリープ1の計13本）。全タスクは
+**bat直接起動**（隠しVBS全廃＝Smart App Control/MOTWの `Code:800711CE` ブロックを根絶）、命名は `invest_*` に統一、
+平日(月〜金)トリガー。**唯一の正本は `invest_setup_tasks.ps1`**（下記「タスクスケジューラの再登録」）。
+旧基盤（task_invest_*.xml / task_names.txt / invest_import_tasks.* / invest_sync_tasks.bat / *_hidden.vbs /
+各種 invest_fix_*.ps1）は全削除した。
 
-### 【重要】午後のキープアウェイク（2026-06-17）— WakeToRun非依存の終了保証
+### 【最重要・真因】午後の持ち越し問題＝「投資戦略_自動スリープ」タスク（2026-06-19 削除済み）
 
-WakeToRunに依存せず、**午後ログイン後にPCをスリープさせない**ことで決済〜自動終了(15:40)を確実化。`kabu_autologin.py` に実装：
+6-17〜6-19、午後にkabuStationが終了されず持ち越す事象が続いた。**3日連続で正確に 15:35:00 にスリープ**して
+いたためイベントログ＋全タスク走査で真因を特定：**ユーザが2026-04-06に作った未文書化タスク
+「投資戦略_自動スリープ」が平日15:35:00に `rundll32 powrprof.dll,SetSuspendState` でPCを強制スリープ**して
+いた（Event42の Sleep Reason=Application API）。これは下記キープアウェイク/UNATTENDSLPを**全て無視して寝る**ため、
+それらの対策が効かなかった。**このタスクを削除して根治**（6-06の金曜持ち越しも同根と推定）。
 
-- `_keep_awake_until(target_local)`：`SetThreadExecutionState(ES_CONTINUOUS|ES_SYSTEM_REQUIRED)` を定期再アサートしながら指定時刻まで常駐（ディスプレイは消えてよい＝ES_DISPLAY_REQUIREDは付けない）。
-- `main()`：ログイン後、**15時台（hour==15 かつ minute<40）のログインなら自動で 15:42 まで維持**（午前ログインや他時刻には作用しない）。明示指定は `--keep-awake-until HH:MM`。
-- タスク/bat/XMLは無変更（`invest_login.bat → run_daily.bat login → kabu_autologin.py` の既存経路で自動有効化）。管理者権限不要。
-- これにより午後ログインタスクは15:20〜15:42の約22分間「実行中」のまま常駐する（AC電源デスクトップでは無害）。
+#### 併用している多層防御（副次・スリープ全般への保険）
 
-### 【重要・真因】無人スリープタイムアウト（UNATTENDSLP）— 2026-06-18
+真因は上記タスクだが、アイドル/無人スリープへの保険として以下も残している：
 
-キープアウェイク(6-17)を入れても **2026-06-18 も 15:35:00 に再スリープ**し、レポートタスクが
-Result=0x1で失敗（メール未送・記録欠落）。イベントログとpowercfgで真因が判明：
-
-- タイマー復帰(WakeToRun)した"無人"状態では、Windowsの **「System unattended sleep timeout
-  (UNATTENDSLP)」が既定120秒**で効き、`ES_SYSTEM_REQUIRED`（アイドルタイマーをリセットするだけ）
-  では**上書きできずに強制スリープ**する。これが2日連続15:35:00スリープの正体。
-- **対策（恒久・管理者権限不要で適用済み）**: UNATTENDSLP(AC)を **1800秒(30分)** に延長。
+- **キープアウェイク**（`kabu_autologin.py` の `_keep_awake_until`）：午後ログイン後、15時台(minute<40)のログインは
+  自動で **15:42までスリープ抑制**（`ES_CONTINUOUS|ES_SYSTEM_REQUIRED` を定期再アサート）。`--keep-awake-until HH:MM` で明示も可。
+  このため `invest_login_pm` は15:20〜15:42常駐する（ExecutionTimeLimit=60分に設定済み）。
+- **UNATTENDSLP**（端末の電源設定・git管理外）：無人スリープタイムアウト(AC)を既定120秒→**1800秒**に延長済み。
   ```
   powercfg -setacvalueindex SCHEME_CURRENT SUB_SLEEP 7bc4a2f9-d8fc-4469-b07b-33eb785aaca0 1800
   powercfg -setactive SCHEME_CURRENT
   ```
-  （UNATTENDSLPは既定で隠し設定。可視化は `powercfg -attributes SUB_SLEEP 7bc4a2f9-... -ATTRIB_HIDE`）
-- これで15:19のタイマー復帰後、無人タイムアウトは約15:49まで延び、15:40終了・15:42キープ
-  アウェイクを確実にカバーする。キープアウェイク(6-17)とは併用（多層防御）。
-- **注意**: これは**Windowsの電源設定（gitに含まれない端末側の状態）**。Windows Update や
-  電源プラン切替でリセットされ得る。再発時は上記コマンドで再適用。`powercfg /lastwake` が
-  Device/USB（手動）で、RTCタイマー復帰でないことが不調の兆候。
+  Windows Update等でリセットされ得るので、午後の不調再発時はまず `powercfg /lastwake` と本値を確認。
 
-### 補助タスク（英語名）の役割と注意
+#### Code:10016（取引セッション失効）対策（2026-06-06、現行も有効）
 
-正規の日本語名7タスクとは別に、英語名の補助タスクが5本ある（`invest_import_tasks.ps1` の管理対象外＝手動登録。変更には管理者権限が必要）。
+昼アイドルで取引ログインセッションが失効する対策として、午前で一旦終了→**15:20に再ログイン**して決済までを短縮する設計。
+加えて `kabu_order.py` の決済が `Code:10016` を返したら `kabu_autologin.do_login(force=True)`→トークン再取得→未決済分のみ
+再発注（自動リカバリ）。失敗が残れば `token_monitor.json` で自分宛に即時Gmailアラート（制度信用SHORTは手動返済要・`check_positions.py`で確認）。
+パスキー処理は実績ある高速版＋「ウィンドウ消失=進行済み」ガード（最終判定は `do_login` のAPI確認）。
 
-- **`invest_morning_shutdown`（09:10）+ `invest_afternoon_login`（15:20）**: 寄付き後〜引け前の長いアイドル中に kabuStation のログインセッションが失効するのを避けるため、いったん終了して引け前に再ログインする設計。
-  - **金曜型 Code:10016 対策（2026-06-06）**: 2026-06-05に再ログイン(15:10)後も15:25決済が `Code:10016`（取引ログインセッション失効）で全件失敗。①APIトークン（読み取り用）は再取得できても、②発注に必要な取引ログインセッションが15分弱で失効していたのが原因（木曜は同タイミングで成功＝常に致命的ではないがセッションが早く死ぬ日がある）。対策として再ログインを **15:10→15:20** に前倒しし、決済までの経過を約14分→約4分に短縮。`task_invest_afternoon_login.xml` 参照。
-  - **多層防御（2026-06-06 実装済み）**: 15:20への前倒しに加え、以下を実装。
-    - **(a) パスキー処理（2026-06-06 実機テストで再調整）**: 当初「UIA Invokeを8回リトライ」に変更したが、実機テストでリトライ中にパスキーウィンドウのハンドルが無効化し、従来有効だった高速フォールバックがウィンドウ消失後に走って失敗する**回帰**が判明 → 撤回し**実績ある高速版に復帰**。代わりに「パスキーウィンドウが既に消えている＝ログイン進行済み」を `True` 扱いにするガードを `handle_passkey_dialog` に追加（最終的な成否は `do_login` のAPI確認が判定するため安全）。パスキー画面が自動で進むケースで `do_login` が誤って失敗扱いするのを防ぐ。
-    - **(b) 決済の自動リカバリ**: `kabu_order.py` の決済で注文が `Code:10016`（取引セッション失効）を返したら、`kabu_autologin.do_login(force=True)`（APIトークンが取れても強制再ログイン）→トークン再取得→未決済分のみ再発注する。`do_login` に `force` 引数を追加。
-    - **(c) 失敗時の即時通知**: 実発注で失敗が残った場合、`token_monitor.json` を使い自分宛に即時Gmailアラート（失敗銘柄・Code・手動返済の案内）を送る。決済失敗時は「制度信用SHORTは手動返済要」「`check_positions.py` で確認」を明記。
-  - **未テスト注意**: (a)(b) はGUI/発注に関わるため市場時間でしか実地検証できない。初回の本番稼働日（次の月曜）はログ（`log_order.txt` / `log_autologin.txt`）を必ず確認すること。
-- **`invest_monitor_morning`（09:05）/ `invest_monitor_evening`（15:32）**: monitor_agent.py によるログ監視→Gmail通知。
-- **`invest_login`（08:45）**: 自動ログインの1回目（08:47の日本語名タスクと二段構え）。
+---
 
-### 【重要】自動終了タスク（15:40）の堅牢化（2026-06-06）
+## タスクスケジューラの再登録（唯一の手順）
 
-15:40の `投資戦略_自動終了` が定刻に不発で、金曜にkabuStationが週末持ち越しになる事象が発生（土曜は翌朝のログインタスクが無く残骸が始末されないため表面化）。真因はスリープ中の復帰起動失敗＋取りこぼし時の追っかけ実行なし。対策として `task_invest_shutdown.xml` を以下に変更:
+9タスクの定義は **`invest_setup_tasks.ps1`（英語のみ）に集約**。これを実行すると「既存invest関連タスクを全削除→9本を再登録」する（`-Force`で冪等）。
 
-- `StartWhenAvailable`: false → **true**（定刻に動けなくても次回PC起床時に必ず実行）
-- `DisallowStartIfOnBatteries` / `StopIfGoingOnBatteries`: true → **false**（UPS誤認時の保険。本機はデスクトップ常時AC電源）
-- `WakeToRun`: true 維持
+**注意点:**
+- **管理者権限（UAC昇格）が必要**（タスク登録は `Access is denied` になるため）。
+- **Gドライブはadminでマップされない**が、本スクリプトは bat の「パス文字列」を登録するだけでG:にアクセスしないため、**C:にコピーして実行**する。
+- **PS1に日本語を書かない**（PowerShell 5.1がCP932で誤読しparse error。コメントも英語のみ）。日本語タスク名の削除は `[char]0x6295`（投）でマッチして回避している。
 
-**タスク変更には管理者権限が必要**（Claude Code/通常セッションからは `Access is denied 0x80070005`）。再登録は管理者PowerShellで:
+```powershell
+# 1. C: にコピー（Gはadminで見えないため）
+Copy-Item "G:\My Drive\Claude Code\Invest\invest_setup_tasks.ps1" "C:\Users\tropi\invest_setup_tasks.ps1" -Force
+# 2. 昇格実行（UACで「はい」）。結果は C:\Users\tropi\invest_setup_tasks.log
+powershell -Command "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','C:\Users\tropi\invest_setup_tasks.ps1'"
 ```
-powershell -ExecutionPolicy Bypass -File "C:\Users\tropi\invest_fix_shutdown_task.ps1"
-```
-テストタスク掃除も同様に管理者で: `invest_cleanup_test_tasks.ps1`
 
-**タスク登録手順**（管理者権限不要 — Claude Codeから直接実行可能）:
-1. `invest_sync_tasks.bat` を実行（ps1・task_names.txt・全XMLを `C:\Users\tropi\` にコピー）
-2. `powershell -ExecutionPolicy Bypass -File C:\Users\tropi\invest_import_tasks.ps1` を実行
+実行コンテキストは `InteractiveToken`＋SID `S-1-5-21-2752900438-3444082329-101990108-1001`（GUI自動化のため対話セッションで実行）。
 
 ---
 
@@ -204,21 +179,7 @@ python -X utf8 trim_logs.py
 
 ## タスクスケジューラの再登録
 
-Claude Codeから直接実行可能（管理者権限不要、ただしSIDが一致していること）。
-
-```bat
-# 1. Gドライブ → C:\Users\tropi\ にコピー（ps1・task_names.txt・全XML）
-invest_sync_tasks.bat
-
-# 2. タスク登録
-powershell -ExecutionPolicy Bypass -File C:\Users\tropi\invest_import_tasks.ps1
-```
-
-**XMLファイルについて**:
-- 全XMLファイルは**UTF-8エンコーディング**（BOMなし）
-- SIDは `S-1-5-21-2752900438-3444082329-101990108-1001`（tropi ユーザー）
-- `invest_import_tasks.ps1` は UTF-8 で読み込み、`encoding=` 宣言を除去してから登録する
-- 既存タスクで日本語名と英語名が重複した場合は英語名タスクを削除すること（`invest_shutdown` 15:30 が 投資戦略_自動終了 15:40 と競合した実績あり）
+→ 上の「日次スケジュール」内「タスクスケジューラの再登録（唯一の手順）」を参照（`invest_setup_tasks.ps1` を C:にコピーしてUAC昇格実行）。旧 XML/import/sync 方式は廃止。
 
 ---
 
@@ -337,7 +298,7 @@ powershell -ExecutionPolicy Bypass -File C:\Users\tropi\invest_import_tasks.ps1
 ### 管理者権限とGドライブ
 - Windowsでは**管理者権限で実行するとGドライブ（Google Drive）がマップされない**
 - タスクスケジューラのタスク本体はGドライブへアクセスしない（ラッパーbatがsetlocalでパスを解決）
-- タスク登録（`invest_import_tasks.ps1`）はClaude Codeから直接実行可能（管理者権限不要）
+- タスク登録（`invest_setup_tasks.ps1`）は**管理者権限（UAC昇格）が必要**。Gはadminで見えないため**C:にコピーして実行**する（登録するのはbatのパス文字列のみでG:アクセスは不要）
 
 ### PowerShellのエンコーディング
 - PowerShell 5.x は CP932 で読むため、PS1ファイルに日本語を含めると parse error になる
@@ -496,5 +457,7 @@ KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 | 2026-06-10 | 午後ログイン不安定対策：口座番号送信Enterの取りこぼし(CEFフォーカス外れ)対策。2FA未着なら最前面化してEnter再送→再待機を最大3回（_resend_login_enter）。決済/照会/レポートのcmd窓を非表示VBS起動化 |
 | 2026-06-08 | universe を仕様どおり17銘柄に復帰：daily_signalに1625.T（電機・精密）追加（v3シクリカルにも追加）。執行は売建可能な200A.Tに置換（kabu_order JP_TICKER_TO_CODE）。cache_prior.parquet再構築 |
 | 2026-06-08 | v2（国スプレッド）を仕様どおり 1/√N → 1/N（米国1/11・日本1/17）に修正。daily_signal.py / backtest.py 両方を統一（仕様完全準拠） |
+| 2026-06-19 | 【午後持ち越しの真因特定＆根治】未文書化タスク「投資戦略_自動スリープ」(平日15:35:00 SetSuspendStateでPC強制スリープ)が3日連続15:35:00スリープの正体と判明→削除。あわせて**タスク構成を13本→9本に簡素化**（全bat直起動・隠しVBS全廃・命名invest_*統一・平日トリガー）。唯一の正本 `invest_setup_tasks.ps1` を新設し、旧基盤(XML/task_names/import/sync/hidden vbs/fix系)を全削除。キープアウェイク(6-17)・UNATTENDSLP(6-18)は副次の保険として残置 |
+| 2026-06-18 | 午後スリープ対策②：UNATTENDSLP(無人スリープ既定120秒)をAC1800秒へ延長（端末側電源設定）。※真因は翌6-19に判明（自動スリープタスク）で、本対策は副次の保険 |
 | 2026-06-17 | 午後の終了保証：WakeToRunが実機で不発（イベントログで15:35スリープ→15:40終了不発→手動復帰まで放置を確認）。`kabu_autologin.py` に `_keep_awake_until` を追加し、15時台ログインは自動で15:42までスリープ抑制を維持（`--keep-awake-until HH:MM` 手動指定も可）。タスク無変更・管理者不要 |
 | 2026-06-11 | 【6-10 cmd窓非表示化の撤回】決済/照会/レポートのwscript+非表示VBS起動が、Smart App Control(Enforced)＋Google Drive同期のMOTW付与で `Code:800711CE` ブロックされ全不発。タスクXML 3本を**bat直接起動に戻し**、`invest_{close,fills,report}_hidden.vbs` と `invest_fix_hidden_tasks.ps1` を削除。cmd窓は再表示されるが確実性を優先。再登録は管理者権限要（昨日adminで登録された影響）→ UAC昇格でinvest_import_tasks.ps1実行。※GドライブのVBSにMOTWが付くと.vbs実行が弾かれる点に注意（必要時は `Get-ChildItem *.vbs \| Unblock-File`） |
