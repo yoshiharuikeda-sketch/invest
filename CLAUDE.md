@@ -63,18 +63,28 @@ G:\My Drive\Claude Code\Invest\
 | 08:50 | `invest_signal` | daily_signal.py → signal_YYYYMMDD.csv | - | - |
 | 09:00 | `invest_open` | kabu_order.py（発注。DRY中は dry_open） | - | - |
 | **09:10** | `invest_shutdown_am` | kabuStation終了（昼間アイドル中の常駐解放） | true | **true** |
-| 〜昼間は kabuStation 停止〜 | | | | |
+| **09:12** | `invest_sleep_am` | **PCをスリープ（昼間省電力）** SetSuspendState。15:20のlogin_pmがWakeToRunで起こす | - | - |
+| 〜昼間は PC スリープ〜 | | | | |
 | **15:20** | `invest_login_pm` | 引け前に再ログイン（決済用の新セッション確保）+ **キープアウェイク常駐(〜15:42)** | true | - |
 | 15:25 | `invest_close` | kabu_order.py --close（決済。DRY中は dry_close） | true | - |
 | **15:32** | `invest_fills` | fetch_fills.py → fills_YYYYMMDD.csv（実約定価格＋板情報） | true | - |
 | **15:35** | `invest_report` | report_agent.py/paper_trade.py → Gmail通知 + Excel更新 | true | - |
 | **15:40** | `invest_shutdown_pm` | kabuStation終了 | true | **true** |
+| **15:45** | `invest_sleep_pm` | **PCをスリープ（夜間省電力）** SetSuspendState。翌朝08:45のlogin_amがWakeToRunで起こす | - | - |
 
-**タスク構成は 2026-06-19 に9本へ簡素化**（旧：日本語名7＋英語補助5＋自動スリープ1の計13本）。全タスクは
+**タスク構成は 2026-06-19 に簡素化**（旧：日本語名7＋英語補助5＋自動スリープ1の計13本）。トレード系9本は
 **bat直接起動**（隠しVBS全廃＝Smart App Control/MOTWの `Code:800711CE` ブロックを根絶）、命名は `invest_*` に統一、
-平日(月〜金)トリガー。**唯一の正本は `invest_setup_tasks.ps1`**（下記「タスクスケジューラの再登録」）。
+平日(月〜金)トリガー。**2026-06-20 に省電力スリープ2本（`invest_sleep_am` 09:12 / `invest_sleep_pm` 15:45）を追加し計11本**。
+**唯一の正本は `invest_setup_tasks.ps1`**（下記「タスクスケジューラの再登録」）。
 旧基盤（task_invest_*.xml / task_names.txt / invest_import_tasks.* / invest_sync_tasks.bat / *_hidden.vbs /
 各種 invest_fix_*.ps1）は全削除した。
+
+**省電力スリープの設計（2026-06-20）**: 取引の谷間でPCを寝かせて省電力化。`SetSuspendState 0,1,0`（第3引数0＝
+ウェイクイベント有効なのでWakeToRunで起きられる）を使う。①`invest_sleep_am`(09:12)＝午前終了(09:10)後に寝て
+昼間休止→15:20 login_pm が起こす。②`invest_sleep_pm`(15:45)＝午後終了(15:40)後・キープアウェイク解除(15:42)後に
+寝て夜間休止→翌朝08:45 login_am が起こす。**注意**: 強制スリープなので、その時刻にPCを使用中でも寝る（旧
+「投資戦略_自動スリープ」と同じ仕組みだが、時刻が取引と衝突しない09:12/15:45に置いてある点が異なる）。なお
+削除した旧タスクは15:35＝決済中に寝てしまうのが問題だった。
 
 ### 【最重要・真因】午後の持ち越し問題＝「投資戦略_自動スリープ」タスク（2026-06-19 削除済み）
 
@@ -457,6 +467,7 @@ KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 | 2026-06-10 | 午後ログイン不安定対策：口座番号送信Enterの取りこぼし(CEFフォーカス外れ)対策。2FA未着なら最前面化してEnter再送→再待機を最大3回（_resend_login_enter）。決済/照会/レポートのcmd窓を非表示VBS起動化 |
 | 2026-06-08 | universe を仕様どおり17銘柄に復帰：daily_signalに1625.T（電機・精密）追加（v3シクリカルにも追加）。執行は売建可能な200A.Tに置換（kabu_order JP_TICKER_TO_CODE）。cache_prior.parquet再構築 |
 | 2026-06-08 | v2（国スプレッド）を仕様どおり 1/√N → 1/N（米国1/11・日本1/17）に修正。daily_signal.py / backtest.py 両方を統一（仕様完全準拠） |
+| 2026-06-20 | 省電力スリープ2本を追加（計11タスク）：`invest_sleep_am`(09:12, 午前終了後→昼間休止)・`invest_sleep_pm`(15:45, 午後終了後→夜間休止)。SetSuspendState 0,1,0（ウェイクタイマー有効）でWakeToRunログインが起こす。取引と衝突しない時刻に配置。invest_setup_tasks.ps1に統合 |
 | 2026-06-19 | 【午後持ち越しの真因特定＆根治】未文書化タスク「投資戦略_自動スリープ」(平日15:35:00 SetSuspendStateでPC強制スリープ)が3日連続15:35:00スリープの正体と判明→削除。あわせて**タスク構成を13本→9本に簡素化**（全bat直起動・隠しVBS全廃・命名invest_*統一・平日トリガー）。唯一の正本 `invest_setup_tasks.ps1` を新設し、旧基盤(XML/task_names/import/sync/hidden vbs/fix系)を全削除。キープアウェイク(6-17)・UNATTENDSLP(6-18)は副次の保険として残置 |
 | 2026-06-18 | 午後スリープ対策②：UNATTENDSLP(無人スリープ既定120秒)をAC1800秒へ延長（端末側電源設定）。※真因は翌6-19に判明（自動スリープタスク）で、本対策は副次の保険 |
 | 2026-06-17 | 午後の終了保証：WakeToRunが実機で不発（イベントログで15:35スリープ→15:40終了不発→手動復帰まで放置を確認）。`kabu_autologin.py` に `_keep_awake_until` を追加し、15時台ログインは自動で15:42までスリープ抑制を維持（`--keep-awake-until HH:MM` 手動指定も可）。タスク無変更・管理者不要 |
