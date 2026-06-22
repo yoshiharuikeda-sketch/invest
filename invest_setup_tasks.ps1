@@ -42,21 +42,22 @@ catch { $principal = New-ScheduledTaskPrincipal -UserId 'tropi' -LogonType Inter
 #   Swa   = StartWhenAvailable (run late on next boot if the scheduled time was missed)
 #   Limit = ExecutionTimeLimit in minutes. login_pm stays resident until 15:42 (keep-awake), so longer.
 #   Exec/Args = explicit action (used by the sleep tasks); otherwise Bat is launched from $DIR.
-# Sleep tasks use SetSuspendState 0,1,0 (3rd arg 0 = wake events NOT disabled, so WakeToRun still wakes it):
+# Sleep tasks call invest_sleep.bat -> invest_sleep.py -> SetSuspendState(0,0,0) with EXPLICIT
+# bWakeupEventsDisabled=0 (so WakeToRun reliably wakes the PC). The old rundll32 form passed
+# garbage args (rundll32 calling convention) and disabled wake events -> 6-22 afternoon never woke.
 #   sleep_am 09:12 sleeps for midday (login_pm 15:20 wakes it); sleep_pm 15:45 sleeps overnight (login_am 08:45 wakes it).
-$SLEEP = @{ Exec='rundll32.exe'; Args='powrprof.dll,SetSuspendState 0,1,0' }
 $tasks = @(
   @{ Name='invest_login_am';     Time='08:45'; Bat='invest_login.bat';    Wake=$true;  Swa=$false; Limit=60 },
   @{ Name='invest_signal';       Time='08:50'; Bat='invest_signal.bat';   Wake=$false; Swa=$false; Limit=10 },
   @{ Name='invest_open';         Time='09:00'; Bat='invest_open.bat';     Wake=$false; Swa=$false; Limit=10 },
   @{ Name='invest_shutdown_am';  Time='09:10'; Bat='invest_shutdown.bat'; Wake=$true;  Swa=$true;  Limit=10 },
-  @{ Name='invest_sleep_am';     Time='09:12'; Exec=$SLEEP.Exec; Args=$SLEEP.Args; Wake=$false; Swa=$false; Limit=5 },
+  @{ Name='invest_sleep_am';     Time='09:12'; Bat='invest_sleep.bat';    Wake=$false; Swa=$false; Limit=5 },
   @{ Name='invest_login_pm';     Time='15:20'; Bat='invest_login.bat';    Wake=$true;  Swa=$false; Limit=60 },
   @{ Name='invest_close';        Time='15:25'; Bat='invest_close.bat';    Wake=$true;  Swa=$false; Limit=10 },
   @{ Name='invest_fills';        Time='15:32'; Bat='invest_fills.bat';    Wake=$true;  Swa=$false; Limit=10 },
   @{ Name='invest_report';       Time='15:35'; Bat='invest_report.bat';   Wake=$true;  Swa=$false; Limit=10 },
   @{ Name='invest_shutdown_pm';  Time='15:40'; Bat='invest_shutdown.bat'; Wake=$true;  Swa=$true;  Limit=10 },
-  @{ Name='invest_sleep_pm';     Time='15:45'; Exec=$SLEEP.Exec; Args=$SLEEP.Args; Wake=$false; Swa=$false; Limit=5 }
+  @{ Name='invest_sleep_pm';     Time='15:45'; Bat='invest_sleep.bat';    Wake=$false; Swa=$false; Limit=5 }
 )
 
 foreach ($t in $tasks) {
