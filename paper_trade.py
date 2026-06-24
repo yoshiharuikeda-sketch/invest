@@ -107,6 +107,12 @@ def _save_excel():
     df_det  = (pd.read_csv(PAPER_DETAIL_CSV, encoding="utf-8-sig")
                if PAPER_DETAIL_CSV.exists() else pd.DataFrame())
 
+    # 累計損益(円): 日付昇順の running total を「合計損益(円)」の直後に追加
+    if "合計損益(円)" in df_hist.columns and len(df_hist):
+        df_hist = df_hist.sort_values("日付").reset_index(drop=True)
+        cum = pd.to_numeric(df_hist["合計損益(円)"], errors="coerce").cumsum().round()
+        df_hist.insert(df_hist.columns.get_loc("合計損益(円)") + 1, "累計損益(円)", cum)
+
     wb = Workbook()
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill("solid", fgColor="6A1B9A")  # 紫＝仮想（本番1565C0と区別）
@@ -156,7 +162,7 @@ def _save_excel():
 
     ws1 = wb.active
     ws1.title = "仮想日次サマリー"
-    _write(ws1, df_hist, {"合計損益(円)"}, {"損益率(%)"})
+    _write(ws1, df_hist, {"合計損益(円)", "累計損益(円)"}, {"損益率(%)"})
     if not df_det.empty:
         ws2 = wb.create_sheet("仮想銘柄別明細")
         _write(ws2, df_det, {"損益(円)"}, {"OC騰落率(%)"})
