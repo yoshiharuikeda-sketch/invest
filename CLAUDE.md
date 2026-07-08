@@ -467,6 +467,7 @@ KABU_ACCOUNT_NUMBER=<口座番号（8桁）>
 | 2026-06-10 | 午後ログイン不安定対策：口座番号送信Enterの取りこぼし(CEFフォーカス外れ)対策。2FA未着なら最前面化してEnter再送→再待機を最大3回（_resend_login_enter）。決済/照会/レポートのcmd窓を非表示VBS起動化 |
 | 2026-06-08 | universe を仕様どおり17銘柄に復帰：daily_signalに1625.T（電機・精密）追加（v3シクリカルにも追加）。執行は売建可能な200A.Tに置換（kabu_order JP_TICKER_TO_CODE）。cache_prior.parquet再構築 |
 | 2026-06-08 | v2（国スプレッド）を仕様どおり 1/√N → 1/N（米国1/11・日本1/17）に修正。daily_signal.py / backtest.py 両方を統一（仕様完全準拠） |
+| 2026-07-08 | 朝ログイン失敗対策：7-08にlogin_am(08:45)が復帰25秒後の環境未安定でimport前クラッシュ(0x1・ログ0行、時刻再同期08:45:20が傍証)。WakeToRun自体は正常。対策=**sleep以外の全タスクに失敗時リトライ(RestartCount=3/1分間隔)** を付与（invest_setup_tasks.ps1）＋ `run_daily.bat login` のstderrを `C:\Users\tropi\log_login_stderr.txt` に退避（import前クラッシュの解析用）。signalは成功しており当日午後のpaper記録は無事 |
 | 2026-06-20 | 省電力スリープ2本を追加（計11タスク）：`invest_sleep_am`(09:12, 午前終了後→昼間休止)・`invest_sleep_pm`(15:45, 午後終了後→夜間休止)。SetSuspendState 0,1,0（ウェイクタイマー有効）でWakeToRunログインが起こす。取引と衝突しない時刻に配置。invest_setup_tasks.ps1に統合 |
 | 2026-06-19 | 【午後持ち越しの真因特定＆根治】未文書化タスク「投資戦略_自動スリープ」(平日15:35:00 SetSuspendStateでPC強制スリープ)が3日連続15:35:00スリープの正体と判明→削除。あわせて**タスク構成を13本→9本に簡素化**（全bat直起動・隠しVBS全廃・命名invest_*統一・平日トリガー）。唯一の正本 `invest_setup_tasks.ps1` を新設し、旧基盤(XML/task_names/import/sync/hidden vbs/fix系)を全削除。キープアウェイク(6-17)・UNATTENDSLP(6-18)は副次の保険として残置 |
 | 2026-06-18 | 午後スリープ対策②：UNATTENDSLP(無人スリープ既定120秒)をAC1800秒へ延長（端末側電源設定）。※真因は翌6-19に判明（自動スリープタスク）で、本対策は副次の保険 |

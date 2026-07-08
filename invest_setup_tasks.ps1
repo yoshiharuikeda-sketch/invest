@@ -65,7 +65,19 @@ foreach ($t in $tasks) {
     else         { $action = New-ScheduledTaskAction -Execute (Join-Path $DIR $t.Bat);   $what = $t.Bat }
     $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek $DOW -At $t.Time
     # Desktop on AC: clear all battery restrictions (so a UPS misdetect never blocks a task).
-    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes $t.Limit)
+    $sp = @{
+        AllowStartIfOnBatteries    = $true
+        DontStopIfGoingOnBatteries = $true
+        MultipleInstances          = 'IgnoreNew'
+        ExecutionTimeLimit         = (New-TimeSpan -Minutes $t.Limit)
+    }
+    # Retry on failure for trading tasks (e.g. login crashing before the environment settled
+    # right after an overnight wake -> 2026-07-08). Sleep tasks must NOT retry.
+    if ($t.Bat -ne 'invest_sleep.bat') {
+        $sp['RestartCount']    = 3
+        $sp['RestartInterval'] = (New-TimeSpan -Minutes 1)
+    }
+    $settings = New-ScheduledTaskSettingsSet @sp
     $settings.WakeToRun          = [bool]$t.Wake
     $settings.StartWhenAvailable = [bool]$t.Swa
     Register-ScheduledTask -TaskName $t.Name -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
