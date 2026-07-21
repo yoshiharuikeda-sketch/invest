@@ -60,3 +60,15 @@ PermissionError: [Errno 13] Permission denied: 'G:\\My Drive\\Claude Code\\Inves
 [2026-06-04 21:08:36] 日次通知送信: 【日次】2026-06-03 -2,065円 L
 [2026-06-04 21:08:36] 週次・月次レポート対象日ではありません
 [2026-06-04 21:46:58] Excel保存: trade_history.xlsx (8日 / 82明細)
+[2026-06-05 15:35:09] === report_agent 開始: 2026-06-05 ===
+[2026-06-05 15:35:10] file_cache is only supported with oauth2client<4.0.0
+[2026-06-06 00:07:12] 
+1 Failed download:
+[2026-06-06 00:07:12] ['1624.T']: TypeError("'NoneType' object is not subscriptable")
+[2026-06-06 00:07:12] P&L保存: 2026-06-04  -2,506円 (-0.835%)
+[2026-06-06 00:07:18] Excel保存: trade_history.xlsx (9日 / 91明細)
+[2026-06-06 00:07:21] Gmail sent: 【日次】2026-06-04 -2,506円 L
+[2026-06-06 00:07:21] 日次通知送信: 【日次】2026-06-04 -2,506円 L
+[2026-06-06 00:07:24] generated new fontManager
+[2026-06-06 00:07:26] Gmail sent: 【週次】投資レポート 2026-06-05
+[2026-06-06 00:07:26] report_agent 完了
